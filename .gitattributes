@@ -1,0 +1,37 @@
+# Normalize line endings for text files
+* text=auto
+
+# Code
+*.cs        text diff=csharp
+*.shader    text
+*.hlsl      text
+*.cginc     text
+*.json      text
+*.md        text
+
+# Unity YAML assets (text serialization). Treat as text but don't auto-merge line by line.
+*.unity     text merge=unityyamlmerge eol=lf
+*.prefab    text merge=unityyamlmerge eol=lf
+*.asset     text merge=unityyamlmerge eol=lf
+*.mat       text merge=unityyamlmerge eol=lf
+*.anim      text merge=unityyamlmerge eol=lf
+*.controller text merge=unityyamlmerge eol=lf
+*.meta      text merge=unityyamlmerge eol=lf
+*.physicMaterial text merge=unityyamlmerge eol=lf
+*.inputactions text
+
+# Binary files
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.tif       binary
+*.tga       binary
+*.psd       binary
+*.fbx       binary
+*.obj       binary
+*.wav       binary
+*.mp3       binary
+*.ogg       binary
+*.mp4       binary
+*.ttf       binary
+*.otf       binary
