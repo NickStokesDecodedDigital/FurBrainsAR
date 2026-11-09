@@ -4,7 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-FurBrainsAR is a mobile AR prototype built on Unity's **Mobile AR template** (Unity 6.3 LTS, `6000.3.28f1`). Its primary target is **Android (ARCore)**; ARKit is installed but iOS isn't currently built. The user is new to Unity and Claude Code, so explain the Editor steps that code changes depend on.
+FurBrainsAR is a mobile AR prototype built on Unity's **Mobile AR template** (Unity 6.3 LTS, `6000.3.28f1`). Its primary target is **Android (ARCore)**; ARKit is installed but iOS isn't currently built.
+
+## Working with the user
+
+- They have some Unity experience and are strongest in **C++**, and they're new to C#-heavy Unity work and to Claude Code. Explain C#/Unity concepts by comparison with C++ where it helps: GC vs. manual lifetime, `Destroy()` vs. `delete`, MonoBehaviour lifecycle vs. constructors, properties, events/delegates, `[SerializeField]`.
+- They want to **understand how the project works**, not just get working code. For each change, briefly explain what was changed, why, and how it fits into the existing architecture (which components talk to which, and what's wired in the scene vs. in code). Point to the relevant files rather than treating code as a black box.
+- Spell out any Editor steps that code changes depend on.
 
 Key packages (see `Packages/manifest.json`): AR Foundation 6.5, ARCore/ARKit 6.5, XR Interaction Toolkit 3.5.1, Input System 1.20, URP 17.3, Android Logcat.
 
