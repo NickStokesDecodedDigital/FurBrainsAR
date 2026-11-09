@@ -8,10 +8,10 @@ FurBrainsAR is a mobile AR prototype built on Unity's **Mobile AR template** (Un
 
 ## Product context
 
-**FurBrains** is a fluffy AI toy for children aged 3–11 that they can talk to. This app lets the player interact directly with a **digital FurBrain** in AR. Two directions are being explored, and both may end up in the app:
+**FurBrains** is a fluffy AI toy for children aged 3–11 that they can talk to. This app lets the player interact directly with a **digital FurBrain** in AR. It is **one app** that combines two things:
 
-1. **AR pet game:** a virtual pet that lives in the player's space (care, feeding, play, a growing relationship), in the genre of AR virtual-pet games.
-2. **Minigames:** short games played together with the digital FurBrain.
+1. **AR pet game (the core loop):** a virtual pet that lives in the player's space (care, feeding, play, a growing relationship), in the genre of AR virtual-pet games.
+2. **A broad minigame collection played with the FurBrain:** this is the key differentiator. Pet games in this genre usually offer only a small selection of minigames, while FurBrains should offer many. Architect minigames as **pluggable modules** sharing a common interface (start/end, results feeding back into the pet's state) so new ones are cheap to add.
 
 Design implications:
 - **The audience is young children.** Use large touch targets, minimal reading (icons, audio, animation), simple one-finger gestures, short sessions, and no fail states that punish.
