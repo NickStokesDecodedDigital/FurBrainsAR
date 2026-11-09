@@ -6,6 +6,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 FurBrainsAR is a mobile AR prototype built on Unity's **Mobile AR template** (Unity 6.3 LTS, `6000.3.28f1`). Its primary target is **Android (ARCore)**; ARKit is installed but iOS isn't currently built.
 
+## Product context
+
+**FurBrains** is a fluffy AI toy for children aged 3–11 that they can talk to. This app lets the player interact directly with a **digital FurBrain** in AR. Two directions are being explored, and both may end up in the app:
+
+1. **AR pet game:** a virtual pet that lives in the player's space (care, feeding, play, a growing relationship), in the genre of AR virtual-pet games.
+2. **Minigames:** short games played together with the digital FurBrain.
+
+Design implications:
+- **The audience is young children.** Use large touch targets, minimal reading (icons, audio, animation), simple one-finger gestures, short sessions, and no fail states that punish.
+- **Child privacy:** treat camera and microphone data and any voice or AI features with child-privacy rules in mind (e.g. COPPA, GDPR-K). Don't add analytics, ads, accounts or network calls without discussing it first.
+- The FurBrain character is the toy's own IP. Mechanics can draw on the genre, but don't copy specific existing games' characters, art or content.
+
 ## Working with the user
 
 - They have some Unity experience and are strongest in **C++**, and they're new to C#-heavy Unity work and to Claude Code. Explain C#/Unity concepts by comparison with C++ where it helps: GC vs. manual lifetime, `Destroy()` vs. `delete`, MonoBehaviour lifecycle vs. constructors, properties, events/delegates, `[SerializeField]`.
