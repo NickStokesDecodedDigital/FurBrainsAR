@@ -210,6 +210,7 @@ namespace UnityEngine.XR.Templates.AR
             set => XRInputReaderUtility.SetInputProperty(ref m_DragCurrentPositionInput, value, this);
         }
 
+        FurBrains.FurBrainSummoner m_Summoner;
         bool m_IsPointerOverUI;
         bool m_ShowObjectMenu;
         bool m_ShowOptionsModal;
@@ -278,6 +279,13 @@ namespace UnityEngine.XR.Templates.AR
                 m_InitializingDebugMenu = false;
             }
 
+            // FurBrains: the create (food) button and its menu only exist while a FurBrain is summoned.
+            var summoned = IsFurBrainSummoned();
+            if (m_ShowObjectMenu && !summoned)
+                HideMenu();
+            if (m_CreateButton.gameObject.activeSelf != summoned)
+                m_CreateButton.gameObject.SetActive(summoned);
+
             if (m_ShowObjectMenu || m_ShowOptionsModal)
             {
                 if (!m_IsPointerOverUI && (m_TapStartPositionInput.TryReadValue(out _) || m_DragCurrentPositionInput.TryReadValue(out _)))
@@ -295,7 +303,7 @@ namespace UnityEngine.XR.Templates.AR
                 }
                 else
                 {
-                    m_DeleteButton.gameObject.SetActive(m_InteractionGroup?.focusInteractable != null);
+                    m_DeleteButton.gameObject.SetActive(HasDeletableObject());
                 }
 
                 m_IsPointerOverUI = EventSystem.current != null && EventSystem.current.IsPointerOverGameObject(-1);
@@ -303,8 +311,7 @@ namespace UnityEngine.XR.Templates.AR
             else
             {
                 m_IsPointerOverUI = false;
-                m_CreateButton.gameObject.SetActive(true);
-                m_DeleteButton.gameObject.SetActive(m_InteractionGroup?.focusInteractable != null);
+                m_DeleteButton.gameObject.SetActive(HasDeletableObject());
             }
 
             if (!m_IsPointerOverUI && m_ShowOptionsModal)
@@ -449,12 +456,35 @@ namespace UnityEngine.XR.Templates.AR
             }
         }
 
+        // FurBrains: the delete button is available whenever a FurBrain is summoned, not only after tapping it
+        // (the template's rule, based on XRI "focus"). With one FurBrain at a time there's no ambiguity about what
+        // gets deleted.
+        bool HasDeletableObject()
+        {
+            if (m_InteractionGroup != null && m_InteractionGroup.focusInteractable != null)
+                return true;
+            return IsFurBrainSummoned();
+        }
+
+        bool IsFurBrainSummoned() => GetSummoner() != null && m_Summoner.hasSummoned;
+
+        FurBrains.FurBrainSummoner GetSummoner()
+        {
+            if (m_Summoner == null)
+                m_Summoner = FindAnyObjectByType<FurBrains.FurBrainSummoner>();
+            return m_Summoner;
+        }
+
         void DeleteFocusedObject()
         {
             var currentFocusedObject = m_InteractionGroup.focusInteractable;
             if (currentFocusedObject != null)
             {
                 Destroy(currentFocusedObject.transform.gameObject);
+            }
+            else if (IsFurBrainSummoned())
+            {
+                Destroy(m_Summoner.summoned);
             }
         }
 

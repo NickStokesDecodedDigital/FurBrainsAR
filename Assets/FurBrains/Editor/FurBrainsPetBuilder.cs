@@ -5,7 +5,6 @@ using UnityEditor.Animations;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.XR.Interaction.Toolkit.Interactables;
-using UnityEngine.XR.Interaction.Toolkit.Transformers;
 
 namespace FurBrains.EditorTools
 {
@@ -14,11 +13,11 @@ namespace FurBrains.EditorTools
     /// Also generates the Animator Controller it uses.
     /// </summary>
     /// <remarks>
-    /// Structure of the generated prefab (mirrors the template's Cube prefab so move / rotate / pinch-scale keep working):
+    /// Structure of the generated prefab. The FurBrain can be tapped (and deleted via the template's delete button)
+    /// but not moved, rotated or scaled by the player; FurBrainPet turns it to face the player itself.
     /// <code>
-    /// ZiaraPet                 Rigidbody (kinematic), XRGrabInteractable, ARTransformer, CapsuleCollider, FurBrainPet
-    /// ├─ AttachTransform       grab point used by XRGrabInteractable
-    /// └─ Model                 scaled to toy size, rotated to face the root's +Z (the spawner points +Z at the
+    /// ZiaraPet                 XRSimpleInteractable, CapsuleCollider, FurBrainPet
+    /// └─ Model                scaled to toy size, rotated to face the root's +Z (the spawner points +Z at the
     ///    │                     camera), offset so the feet are at y = 0
     ///    └─ Ziara              nested Ziara.prefab (Animator, FurBrainFace, all mesh parts), left untouched
     /// </code>
@@ -38,7 +37,7 @@ namespace FurBrains.EditorTools
         const string k_MaskPath = "Assets/FurBrains/Animation/FurBrainBody.mask";
         const string k_PetPrefabPath = "Assets/FurBrains/Prefabs/ZiaraPet.prefab";
 
-        // Height of the placed FurBrain in metres, before the player pinch-scales it (ARTransformer allows 0.25x - 2x).
+        // Height of the placed FurBrain in metres.
         const float k_TargetHeight = 0.3f;
 
         [MenuItem("Tools/FurBrains/Build Ziara Pet Prefab")]
@@ -167,9 +166,6 @@ namespace FurBrains.EditorTools
                 var root = new GameObject("ZiaraPet");
                 EditorSceneManager.MoveGameObjectToScene(root, scene);
 
-                var attach = new GameObject("AttachTransform").transform;
-                attach.SetParent(root.transform, false);
-
                 // Size / facing / ground offset go on a wrapper, never on the Animator's own object: an animation
                 // clip with curves for its root would otherwise overwrite them every frame.
                 var model = new GameObject("Model").transform;
@@ -195,6 +191,8 @@ namespace FurBrains.EditorTools
                     if (fur == null)
                         fur = character.AddComponent<FurBrainFur>();
                     fur.furMaterial = furMaterial;
+                    // Fur is parked for now: the component is added switched off; tick it to try fur again.
+                    fur.enabled = false;
                 }
                 else
                 {
@@ -202,19 +200,12 @@ namespace FurBrains.EditorTools
                                      "Run Tools → FurBrains → Create Ziara Materials, then rebuild the pet.");
                 }
 
-                // Physics + interaction components, configured like the template's Cube prefab.
-                var body = root.AddComponent<Rigidbody>();
-                body.isKinematic = true;
-                body.useGravity = false;
-
+                // Tap-only interaction. XRSimpleInteractable can be selected (a tap: used for waving) and focused
+                // (what the template's delete button acts on), but unlike the template's XRGrabInteractable +
+                // ARTransformer it never moves, rotates or scales the object. It only needs a collider to be hit by
+                // the screen-touch ray; no Rigidbody is required.
                 AddCollider(root, character);
-
-                var interactable = root.AddComponent<XRGrabInteractable>();
-                interactable.attachTransform = attach;
-
-                var transformer = root.AddComponent<ARTransformer>();
-                transformer.minScale = 0.25f;
-                transformer.maxScale = 2f;
+                root.AddComponent<XRSimpleInteractable>();
 
                 var pet = root.AddComponent<FurBrainPet>();
                 pet.animator = animator;

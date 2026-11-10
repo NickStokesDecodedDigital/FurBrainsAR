@@ -172,6 +172,10 @@ namespace UnityEngine.XR.Templates.AR
             set => m_MenuManager = value;
         }
 
+        [Tooltip("FurBrains: skip the template's greeting screen and start onboarding (scan surfaces) immediately.")]
+        [SerializeField]
+        bool m_SkipGreeting = true;
+
         const int k_NumberOfSurfacesTappedToCompleteGoal = 1;
 
         Queue<Goal> m_OnboardingGoals;
@@ -180,6 +184,14 @@ namespace UnityEngine.XR.Templates.AR
         bool m_AllGoalsFinished;
         int m_SurfacesTapped;
         int m_CurrentGoalIndex = 0;
+
+        void Start()
+        {
+            // The greeting's button normally calls StartCoaching (wired in the scene); call it ourselves instead.
+            // StartCoaching also hides the greeting and turns on the menu buttons.
+            if (m_SkipGreeting)
+                StartCoaching();
+        }
 
         void Update()
         {
@@ -291,15 +303,10 @@ namespace UnityEngine.XR.Templates.AR
 
             int startingStep = m_AllGoalsFinished ? 1 : 0;
 
+            // FurBrains: onboarding ends once the FurBrain is summoned. The template's move / scale / rotate hint
+            // goals are left out because the FurBrain can't be moved or scaled (their step prompts stay unused).
             var tapSurfaceGoal = new Goal(OnboardingGoals.TapSurface);
-            var translateHintsGoal = new Goal(OnboardingGoals.Hints);
-            var scaleHintsGoal = new Goal(OnboardingGoals.Scale);
-            var rotateHintsGoal = new Goal(OnboardingGoals.Hints);
-
             m_OnboardingGoals.Enqueue(tapSurfaceGoal);
-            m_OnboardingGoals.Enqueue(translateHintsGoal);
-            m_OnboardingGoals.Enqueue(scaleHintsGoal);
-            m_OnboardingGoals.Enqueue(rotateHintsGoal);
 
             m_CurrentGoal = m_OnboardingGoals.Dequeue();
             m_AllGoalsFinished = false;
