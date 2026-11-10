@@ -1,0 +1,322 @@
+using System.IO;
+using System.Linq;
+using UnityEditor;
+using UnityEditor.Animations;
+using UnityEditor.SceneManagement;
+using UnityEngine;
+using UnityEngine.XR.Interaction.Toolkit.Interactables;
+using UnityEngine.XR.Interaction.Toolkit.Transformers;
+
+namespace FurBrains.EditorTools
+{
+    /// <summary>
+    /// Builds "ZiaraPet.prefab": the placeable, interactive version of Ziara that the AR ObjectSpawner creates.
+    /// Also generates the Animator Controller it uses.
+    /// </summary>
+    /// <remarks>
+    /// Structure of the generated prefab (mirrors the template's Cube prefab so move / rotate / pinch-scale keep working):
+    /// <code>
+    /// ZiaraPet                 Rigidbody (kinematic), XRGrabInteractable, ARTransformer, CapsuleCollider, FurBrainPet
+    /// ├─ AttachTransform       grab point used by XRGrabInteractable
+    /// └─ Model                 scaled to toy size, rotated to face the root's +Z (the spawner points +Z at the
+    ///    │                     camera), offset so the feet are at y = 0
+    ///    └─ Ziara              nested Ziara.prefab (Animator, FurBrainFace, all mesh parts), left untouched
+    /// </code>
+    /// Ziara.prefab is <i>nested</i>, not copied, so rebuilding Ziara with the character builder flows through.
+    /// Re-run this tool after changing it; it overwrites the generated assets in place (same GUIDs, so scene
+    /// references such as the ObjectSpawner's prefab list stay valid).
+    /// </remarks>
+    public static class FurBrainsPetBuilder
+    {
+        const string k_CharacterPrefab = "Assets/FurBrains/Models/Ziara/Ziara.prefab";
+        const string k_WaveClipFbx = "Assets/FurBrains/Models/Wolf/Waving_1__UE.FBX";
+        // Placeholder idle until the Unreal team provides a real idle animation.
+        const string k_IdleClipFbx = "Assets/FurBrains/Models/Wolf/Thinking_UE.FBX";
+
+        const string k_ControllerPath = "Assets/FurBrains/Animation/FurBrainBasic.controller";
+        const string k_FurMaterialPath = "Assets/FurBrains/Models/Ziara/Materials/M_Ziara_Fur.mat";
+        const string k_MaskPath = "Assets/FurBrains/Animation/FurBrainBody.mask";
+        const string k_PetPrefabPath = "Assets/FurBrains/Prefabs/ZiaraPet.prefab";
+
+        // Height of the placed FurBrain in metres, before the player pinch-scales it (ARTransformer allows 0.25x - 2x).
+        const float k_TargetHeight = 0.3f;
+
+        [MenuItem("Tools/FurBrains/Build Ziara Pet Prefab")]
+        static void Build()
+        {
+            SetClipLooping(k_IdleClipFbx, true);
+            SetClipLooping(k_WaveClipFbx, false);
+
+            var controller = BuildController();
+            if (controller == null)
+                return;
+
+            BuildPrefab(controller);
+        }
+
+        /// <summary>
+        /// Idle (looping) is the default state. Firing the "Wave" trigger from any state crossfades into Wave,
+        /// which returns to Idle when it finishes. Tapping again mid-wave restarts the wave.
+        /// </summary>
+        static AnimatorController BuildController()
+        {
+            var waveClip = LoadClip(k_WaveClipFbx);
+            var idleClip = LoadClip(k_IdleClipFbx);
+            if (waveClip == null || idleClip == null)
+                return null;
+
+            EnsureFolder(Path.GetDirectoryName(k_ControllerPath));
+
+            // Rebuild the contents of an existing controller rather than replacing the file, so its GUID survives.
+            var controller = AssetDatabase.LoadAssetAtPath<AnimatorController>(k_ControllerPath);
+            if (controller == null)
+            {
+                controller = AnimatorController.CreateAnimatorControllerAtPath(k_ControllerPath);
+            }
+            else
+            {
+                foreach (var p in controller.parameters)
+                    controller.RemoveParameter(p);
+                var sm = controller.layers[0].stateMachine;
+                foreach (var s in sm.states)
+                    sm.RemoveState(s.state);
+                foreach (var t in sm.anyStateTransitions)
+                    sm.RemoveAnyStateTransition(t);
+            }
+
+            controller.AddParameter(FurBrainPet.WaveTrigger, AnimatorControllerParameterType.Trigger);
+
+            // The layers property hands back a copy of the array, so changes only stick once it's assigned back.
+            var layers = controller.layers;
+            layers[0].avatarMask = BuildBodyMask();
+            controller.layers = layers;
+            var stateMachine = controller.layers[0].stateMachine;
+
+            var idle = stateMachine.AddState("Idle", new Vector3(300, 0));
+            idle.motion = idleClip;
+            stateMachine.defaultState = idle;
+
+            var wave = stateMachine.AddState("Wave", new Vector3(300, 120));
+            wave.motion = waveClip;
+
+            var toWave = stateMachine.AddAnyStateTransition(wave);
+            toWave.AddCondition(AnimatorConditionMode.If, 0, FurBrainPet.WaveTrigger);
+            toWave.duration = 0.15f;
+            toWave.canTransitionToSelf = true;
+
+            var toIdle = wave.AddTransition(idle);
+            toIdle.hasExitTime = true;
+            toIdle.exitTime = 0.95f;
+            toIdle.duration = 0.25f;
+
+            EditorUtility.SetDirty(controller);
+            AssetDatabase.SaveAssets();
+            return controller;
+        }
+
+        /// <summary>
+        /// An Avatar Mask that lets clips animate every bone except the top "root" bone (and the Animator's own object).
+        /// </summary>
+        /// <remarks>
+        /// The Unreal animation exports key the "root" bone with Unreal's Z-up → Unity Y-up conversion baked in, while
+        /// the character model already applies that conversion on its top object. Letting the clip drive "root" applies
+        /// the -90° turn twice, which laid Ziara on her back. "root" carries no real motion in these clips (its moves are
+        /// under 1 cm), so masking it out costs nothing. The mask is a whitelist of transform paths, relative to the
+        /// Animator, built from the character prefab (all FurBrains share the skeleton, so it fits all of them).
+        /// </remarks>
+        static AvatarMask BuildBodyMask()
+        {
+            var character = AssetDatabase.LoadAssetAtPath<GameObject>(k_CharacterPrefab);
+            if (character == null)
+                return null;
+
+            var mask = AssetDatabase.LoadAssetAtPath<AvatarMask>(k_MaskPath);
+            var isNew = mask == null;
+            if (isNew)
+                mask = new AvatarMask();
+
+            var transforms = character.GetComponentsInChildren<Transform>(true);
+            mask.transformCount = transforms.Length;
+            for (var i = 0; i < transforms.Length; i++)
+            {
+                var path = AnimationUtility.CalculateTransformPath(transforms[i], character.transform);
+                mask.SetTransformPath(i, path);
+                mask.SetTransformActive(i, path != "" && path != "root");
+            }
+
+            if (isNew)
+                AssetDatabase.CreateAsset(mask, k_MaskPath);
+            else
+                EditorUtility.SetDirty(mask);
+            return mask;
+        }
+
+        static void BuildPrefab(RuntimeAnimatorController controller)
+        {
+            var characterPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(k_CharacterPrefab);
+            if (characterPrefab == null)
+            {
+                Debug.LogError($"[FurBrains] {k_CharacterPrefab} not found. Build the character prefab first.");
+                return;
+            }
+
+            EnsureFolder(Path.GetDirectoryName(k_PetPrefabPath));
+            var scene = EditorSceneManager.NewPreviewScene();
+            try
+            {
+                var root = new GameObject("ZiaraPet");
+                EditorSceneManager.MoveGameObjectToScene(root, scene);
+
+                var attach = new GameObject("AttachTransform").transform;
+                attach.SetParent(root.transform, false);
+
+                // Size / facing / ground offset go on a wrapper, never on the Animator's own object: an animation
+                // clip with curves for its root would otherwise overwrite them every frame.
+                var model = new GameObject("Model").transform;
+                model.SetParent(root.transform, false);
+
+                var character = (GameObject)PrefabUtility.InstantiatePrefab(characterPrefab, scene);
+                character.transform.SetParent(model, false);
+                FitCharacter(model);
+
+                // Don't use ?? with Unity objects: Unity overrides == null, which ?? ignores.
+                var animator = character.GetComponent<Animator>();
+                if (animator == null)
+                    animator = character.AddComponent<Animator>();
+                animator.runtimeAnimatorController = controller;
+                animator.applyRootMotion = false;
+                // Keep animating even if the FurBrain is briefly off-screen, so it never "freezes" mid-wave.
+                animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+
+                var furMaterial = AssetDatabase.LoadAssetAtPath<Material>(k_FurMaterialPath);
+                if (furMaterial != null)
+                {
+                    var fur = character.GetComponent<FurBrainFur>();
+                    if (fur == null)
+                        fur = character.AddComponent<FurBrainFur>();
+                    fur.furMaterial = furMaterial;
+                }
+                else
+                {
+                    Debug.LogWarning($"[FurBrains] {k_FurMaterialPath} not found, so the pet has no fur. " +
+                                     "Run Tools → FurBrains → Create Ziara Materials, then rebuild the pet.");
+                }
+
+                // Physics + interaction components, configured like the template's Cube prefab.
+                var body = root.AddComponent<Rigidbody>();
+                body.isKinematic = true;
+                body.useGravity = false;
+
+                AddCollider(root, character);
+
+                var interactable = root.AddComponent<XRGrabInteractable>();
+                interactable.attachTransform = attach;
+
+                var transformer = root.AddComponent<ARTransformer>();
+                transformer.minScale = 0.25f;
+                transformer.maxScale = 2f;
+
+                var pet = root.AddComponent<FurBrainPet>();
+                pet.animator = animator;
+
+                var prefab = PrefabUtility.SaveAsPrefabAsset(root, k_PetPrefabPath, out var ok);
+                if (ok)
+                {
+                    Debug.Log($"[FurBrains] Built {k_PetPrefabPath} and {k_ControllerPath}.", prefab);
+                    EditorGUIUtility.PingObject(prefab);
+                    Selection.activeObject = prefab;
+                }
+                else
+                {
+                    Debug.LogError($"[FurBrains] Failed to save {k_PetPrefabPath}.");
+                }
+            }
+            finally
+            {
+                EditorSceneManager.ClosePreviewScene(scene);
+            }
+        }
+
+        /// <summary>Scale to toy size, turn the face toward +Z, and stand the feet on y = 0.</summary>
+        static void FitCharacter(Transform character)
+        {
+            // Facing: the eyes sit in front of the head, so (eye centre - body centre) points the way she faces.
+            var renderers = character.GetComponentsInChildren<Renderer>(true);
+            var body = renderers.FirstOrDefault(r => r.name == "Body");
+            var eyes = renderers.FirstOrDefault(r => r.name == "Eyebrows");
+            if (body != null && eyes != null)
+            {
+                var facing = eyes.bounds.center - body.bounds.center;
+                facing.y = 0f;
+                if (facing.sqrMagnitude > 1e-6f)
+                {
+                    // Snap to the nearest 90 degrees: models are authored facing along an axis.
+                    var yaw = Mathf.Round(Vector3.SignedAngle(facing, Vector3.forward, Vector3.up) / 90f) * 90f;
+                    character.localRotation = Quaternion.Euler(0f, yaw, 0f) * character.localRotation;
+                }
+            }
+
+            var bounds = WorldBounds(renderers);
+            if (bounds.size.y > 0f)
+                character.localScale *= k_TargetHeight / bounds.size.y;
+
+            bounds = WorldBounds(renderers);
+            character.localPosition -= new Vector3(bounds.center.x, bounds.min.y, bounds.center.z);
+        }
+
+        static void AddCollider(GameObject root, GameObject character)
+        {
+            var bounds = WorldBounds(character.GetComponentsInChildren<Renderer>(true));
+            var capsule = root.AddComponent<CapsuleCollider>();
+            capsule.direction = 1; // Y axis
+            capsule.height = bounds.size.y;
+            // Narrower than the full bounds, which include Ziara's wide ears and arms.
+            capsule.radius = Mathf.Min(bounds.size.x, bounds.size.z) * 0.5f;
+            capsule.center = new Vector3(bounds.center.x, bounds.center.y, bounds.center.z);
+        }
+
+        static Bounds WorldBounds(Renderer[] renderers)
+        {
+            var result = new Bounds();
+            var first = true;
+            foreach (var r in renderers)
+            {
+                if (first) { result = r.bounds; first = false; }
+                else result.Encapsulate(r.bounds);
+            }
+            return result;
+        }
+
+        static AnimationClip LoadClip(string fbxPath)
+        {
+            var clip = AssetDatabase.LoadAllAssetsAtPath(fbxPath).OfType<AnimationClip>()
+                .FirstOrDefault(c => !c.name.StartsWith("__preview__"));
+            if (clip == null)
+                Debug.LogError($"[FurBrains] No animation clip found in {fbxPath}.");
+            return clip;
+        }
+
+        /// <summary>Sets "Loop Time" on the FBX's clip(s) through the importer, as the Animation tab would.</summary>
+        static void SetClipLooping(string fbxPath, bool loop)
+        {
+            if (AssetImporter.GetAtPath(fbxPath) is not ModelImporter importer)
+                return;
+            var clips = importer.clipAnimations.Length > 0 ? importer.clipAnimations : importer.defaultClipAnimations;
+            if (clips.All(c => c.loopTime == loop) && importer.clipAnimations.Length > 0)
+                return;
+            foreach (var c in clips)
+                c.loopTime = loop;
+            importer.clipAnimations = clips;
+            importer.SaveAndReimport();
+        }
+
+        static void EnsureFolder(string path)
+        {
+            path = path.Replace('\\', '/');
+            if (AssetDatabase.IsValidFolder(path))
+                return;
+            EnsureFolder(Path.GetDirectoryName(path));
+            AssetDatabase.CreateFolder(Path.GetDirectoryName(path)!.Replace('\\', '/'), Path.GetFileName(path));
+        }
+    }
+}

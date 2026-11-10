@@ -22,6 +22,7 @@ namespace FurBrains.EditorTools
     public static class FurBrainsMaterialBuilder
     {
         const string k_Folder = "Assets/FurBrains/Models/Ziara";
+        const string k_FurMaterial = "M_Ziara_Fur";
 
         /// <summary>One FBX material slot and the textures/settings that should fill it.</summary>
         struct Slot
@@ -85,9 +86,41 @@ namespace FurBrains.EditorTools
                 Remap(slot, material);
             }
 
+            CreateFurMaterial(materialFolder);
+
             AssetDatabase.SaveAssets();
             Debug.Log($"[FurBrains] Created/updated {k_Slots.Length} material slots in {materialFolder}. " +
                       "Rebuild the character prefab if you built it before materials existed.");
+        }
+
+        /// <summary>
+        /// Template material for FurBrainFur (Unreal used a Groom asset, which can't be exported). Only the colour
+        /// texture is set here; other settings keep the shader defaults on creation and any tuning you do afterwards
+        /// survives re-running the tool.
+        /// </summary>
+        static void CreateFurMaterial(string folder)
+        {
+            var shader = Shader.Find("FurBrains/ShellFur");
+            if (shader == null)
+            {
+                Debug.LogError("[FurBrains] FurBrains/ShellFur shader not found (check the Console for shader errors).");
+                return;
+            }
+
+            var path = $"{folder}/{k_FurMaterial}.mat";
+            var material = AssetDatabase.LoadAssetAtPath<Material>(path);
+            var isNew = material == null;
+            if (isNew)
+                material = new Material(shader);
+            else
+                material.shader = shader;
+
+            material.SetTexture("_BaseMap", LoadTexture("Rabbit_Body_BaseColor"));
+
+            if (isNew)
+                AssetDatabase.CreateAsset(material, path);
+            else
+                EditorUtility.SetDirty(material);
         }
 
         static Material CreateOrUpdateMaterial(Slot slot, Shader shader, string folder)
