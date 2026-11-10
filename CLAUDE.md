@@ -52,6 +52,20 @@ The app is the template's `SampleScene`: tap a detected plane to place an object
 - **`GoalManager`** runs the onboarding prompt sequence (greeting → scan surfaces → tap to place → move/rotate/scale hints) using the `Prompt_*` prefabs in `Assets/MobileARTemplateAssets/UI/Prefabs/`.
 - Input comes from the Input System via `XRI Default Input Actions.inputactions`. Scripts read it through XRI `XRInputValueReader`/`XRInputButtonReader` fields, not legacy `Input.*`.
 
+## FurBrains character pipeline
+
+Characters come from the other team's **Unreal Engine** project. All FurBrains characters share one **UE5-mannequin-based 100-bone skeleton** (plus `Ear_*` ×4 per side and `Cape*_001` ×4), so animations are shareable between characters. Faces use **blend shapes** (emotions, `Blink`, visemes `A I U E O`), not jaw or face bones.
+
+- **Characters are modular:** each is several skeletal-mesh FBX parts (Body, Mouth, Eyebrows (actually the eyes), Helmet_Armor, Armor, Cape for Ziara), exported one by one from the character Blueprint's components. Unreal materials and Physics Assets don't transfer; textures do.
+- **Import settings for part and animation FBX:** cameras, lights and empty "Unreal Take" animations off; **Generic** rig (Humanoid would drop the ear and cape bones). Animation-only FBX: no materials.
+- **Editor tools** (`Assets/FurBrains/Editor/`, editor-only):
+  - `FurBrainsTexturePostprocessor`: every texture under `Assets/FurBrains/` is capped at 2048 with ASTC on Android; `*normal*` → normal map, `*roughness*/*alpha*/*mask*` → linear.
+  - `FurBrainsModelPostprocessor`: per-file mesh repairs at import (Ziara's right eye is inside-out in the source FBX and is flipped here).
+  - `FurBrainsMaterialBuilder` (**Tools → FurBrains → Create Ziara Materials**): builds URP Lit materials from the texture names, merges Unreal's separate `_Alpha` masks into `*_Cutout.png` for alpha clipping, and assigns them via the FBX importer's material remaps. The slot → texture table is hand-written per character.
+  - `FurBrainsCharacterBuilder` (**right-click selected part FBX → FurBrains → Build Character Prefab**): keeps the Body's skeleton, rebinds every other part's `SkinnedMeshRenderer.bones` to it by bone name (Unity's equivalent of Unreal Leader Pose), trims surplus material slots, adds `FurBrainFace`, and saves `<Folder>.prefab`. Run it **after** the materials tool.
+- **`FurBrainFace`** (`Assets/FurBrains/Scripts/Character/`): sets blend shapes **by name across all parts** (the same shape exists on several parts, e.g. `Happy` on Body and Mouth), eases weights, auto-blinks, and applies in `LateUpdate` so it overrides animation clips.
+- Character folders: `Assets/FurBrains/Models/Ziara/` (Unreal parts, materials, prefab) and `Assets/FurBrains/Models/Wolf/` (Body only, plus the Laughing, Thinking and Waving animations). **Tools hard-code these folder and file paths** (`FurBrainsMaterialBuilder.k_Folder`, `FurBrainsModelPostprocessor.k_FixInsideOutParts`), so update them when renaming or moving folders.
+
 ## Code layout and conventions
 
 - `Assets/Samples/XR Interaction Toolkit/3.5.1/` is **imported sample code** in its own assemblies (`ARStarterAssets.asmdef`, `StarterAssets.asmdef`). Avoid editing it in place, because re-importing the sample overwrites it. Copy a script or subclass it into project code instead.
