@@ -70,3 +70,7 @@ crashlytics-build.properties
 .DS_Store
 Thumbs.db
 Desktop.ini
+
+# Windows Explorer folder settings
+desktop.ini
+desktop.ini.meta

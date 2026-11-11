@@ -35,10 +35,12 @@ namespace FurBrains
 
         const string k_BlinkShape = "Blink";
 
-        // name -> every (renderer, shape index) pair that has a shape with that name
-        readonly Dictionary<string, List<(SkinnedMeshRenderer renderer, int index)>> m_Shapes = new();
-        readonly Dictionary<string, float> m_Current = new();
-        readonly Dictionary<string, float> m_Target = new();
+        // name -> every (renderer, shape index) pair that has a shape with that name.
+        // Names are matched ignoring upper/lower case, so "empowered" finds "Empowered" (names typed in the Inspector).
+        readonly Dictionary<string, List<(SkinnedMeshRenderer renderer, int index)>> m_Shapes = new(System.StringComparer.OrdinalIgnoreCase);
+        readonly Dictionary<string, float> m_Current = new(System.StringComparer.OrdinalIgnoreCase);
+        readonly Dictionary<string, float> m_Target = new(System.StringComparer.OrdinalIgnoreCase);
+        readonly HashSet<string> m_WarnedUnknown = new();
 
         float m_NextBlinkTime;
         float m_BlinkStartTime = -1f;
@@ -74,8 +76,14 @@ namespace FurBrains
         /// <summary>Ease a shape toward <paramref name="weight"/> (0..1). Returns false if no part has that shape.</summary>
         public bool SetShape(string shapeName, float weight)
         {
-            if (!m_Shapes.ContainsKey(shapeName))
+            if (string.IsNullOrEmpty(shapeName) || !m_Shapes.ContainsKey(shapeName))
+            {
+                // Say so once per name, rather than silently doing nothing (e.g. a typo in an Inspector field).
+                if (weight > 0f && shapeName != null && m_WarnedUnknown.Add(shapeName))
+                    Debug.LogWarning($"[FurBrains] {name} has no blend shape called \"{shapeName}\". " +
+                                     $"Available: {string.Join(", ", m_Shapes.Keys)}", this);
                 return false;
+            }
             m_Target[shapeName] = Mathf.Clamp01(weight);
             return true;
         }

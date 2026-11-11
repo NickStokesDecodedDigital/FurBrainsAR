@@ -43,6 +43,7 @@ GameObject:
   - component: {fileID: 5916763890609347435}
   - component: {fileID: 7963114495985868617}
   - component: {fileID: 6220022318882243731}
+  - component: {fileID: 3077716982258315881}
   - component: {fileID: 1660271106669301248}
   m_Layer: 0
   m_Name: ZiaraPet
@@ -164,6 +165,33 @@ MonoBehaviour:
   m_StartingInteractionStrengthFilters: []
   m_AutoFindParentInteractableInHierarchy: 0
   m_ParentInteractableObject: {fileID: 0}
+--- !u!114 &3077716982258315881
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1596680960204291625}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2b66ff1d350faa443a33041e65602f2b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FurBrains.FurBrainMood
+  m_Bands:
+  - name: Sad
+    minHungerPercent: 0
+    shapes:
+    - Sadness
+    - SadEar
+  - name: Neutral
+    minHungerPercent: 30
+    shapes: []
+  - name: Very happy
+    minHungerPercent: 60
+    shapes:
+    - Empowered
+  m_Face: {fileID: 0}
+  m_Needs: {fileID: 0}
 --- !u!114 &1660271106669301248
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -176,11 +204,22 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 653c110473364864e846d42d56cabbdd, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FurBrains.FurBrainPet
+  m_IdleAnimation: {fileID: 8993902097722301239, guid: c1b4dcc3c5d93db48b58ad896ec37783, type: 3}
+  m_SummonAnimation: {fileID: 8993902097722301239, guid: d9efa982cf9ef6742bdc3e18b00935df, type: 3}
+  m_TapAnimation: {fileID: 1139209442208323140, guid: d9efa982cf9ef6742bdc3e18b00935df, type: 3}
+  m_FeedAnimation: {fileID: 1139209442208323140, guid: d9efa982cf9ef6742bdc3e18b00935df, type: 3}
+  m_SummonExpression:
+  - Empowered
+  m_TapExpression:
+  - Happy
+  m_FeedExpression:
+  - Empowered
+  m_MatchExpressionToAnimation: 1
+  m_ExpressionDuration: 2.5
   m_Animator: {fileID: 5507319438636938278}
   m_Face: {fileID: 0}
-  m_WaveOnSpawn: 1
+  m_PlaySummonAnimation: 1
   m_MaxTapDuration: 0.35
-  m_HappyFaceDuration: 2.5
   m_FacePlayer: 1
   m_TurnSpeed: 45
   m_StartTurnAngle: 20

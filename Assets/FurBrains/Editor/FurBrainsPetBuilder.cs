@@ -28,9 +28,9 @@ namespace FurBrains.EditorTools
     public static class FurBrainsPetBuilder
     {
         const string k_CharacterPrefab = "Assets/FurBrains/Models/Ziara/Ziara.prefab";
-        const string k_WaveClipFbx = "Assets/FurBrains/Models/Wolf/Waving_1__UE.FBX";
-        // Placeholder idle until the Unreal team provides a real idle animation.
-        const string k_IdleClipFbx = "Assets/FurBrains/Models/Wolf/Thinking_UE.FBX";
+        const string k_WaveClipFbx = "Assets/FurBrains/Animation/Clips/Waving_1__UE.FBX";
+        // Placeholder idle until we pick one of the real idles in Animation/Clips/Idle/.
+        const string k_IdleClipFbx = "Assets/FurBrains/Animation/Clips/Thinking_UE.FBX";
 
         const string k_ControllerPath = "Assets/FurBrains/Animation/FurBrainBasic.controller";
         const string k_FurMaterialPath = "Assets/FurBrains/Models/Ziara/Materials/M_Ziara_Fur.mat";
@@ -46,24 +46,28 @@ namespace FurBrains.EditorTools
             SetClipLooping(k_IdleClipFbx, true);
             SetClipLooping(k_WaveClipFbx, false);
 
-            var controller = BuildController();
-            if (controller == null)
-                return;
-
-            BuildPrefab(controller);
-        }
-
-        /// <summary>
-        /// Idle (looping) is the default state. Firing the "Wave" trigger from any state crossfades into Wave,
-        /// which returns to Idle when it finishes. Tapping again mid-wave restarts the wave.
-        /// </summary>
-        static AnimatorController BuildController()
-        {
+            // Starting clips for the pet's animation fields; change them afterwards in the prefab's Inspector.
             var waveClip = LoadClip(k_WaveClipFbx);
             var idleClip = LoadClip(k_IdleClipFbx);
             if (waveClip == null || idleClip == null)
-                return null;
+                return;
 
+            var controller = BuildController();
+            BuildPrefab(controller, idleClip, waveClip);
+        }
+
+        /// <summary>
+        /// A clip-agnostic state machine. Idle (looping) is the default state; each action trigger (Summon, Tap, Feed)
+        /// crossfades from any state into that action's state, which returns to Idle when its clip finishes.
+        /// Triggering the same action again restarts it.
+        /// </summary>
+        /// <remarks>
+        /// Every state plays an empty placeholder "slot" clip, stored inside the controller asset. FurBrainPet replaces
+        /// the slots with the clips chosen in its Inspector fields (through an AnimatorOverrideController), so changing
+        /// an animation never requires rebuilding this controller.
+        /// </remarks>
+        static AnimatorController BuildController()
+        {
             EnsureFolder(Path.GetDirectoryName(k_ControllerPath));
 
             // Rebuild the contents of an existing controller rather than replacing the file, so its GUID survives.
@@ -83,8 +87,6 @@ namespace FurBrains.EditorTools
                     sm.RemoveAnyStateTransition(t);
             }
 
-            controller.AddParameter(FurBrainPet.WaveTrigger, AnimatorControllerParameterType.Trigger);
-
             // The layers property hands back a copy of the array, so changes only stick once it's assigned back.
             var layers = controller.layers;
             layers[0].avatarMask = BuildBodyMask();
@@ -92,25 +94,52 @@ namespace FurBrains.EditorTools
             var stateMachine = controller.layers[0].stateMachine;
 
             var idle = stateMachine.AddState("Idle", new Vector3(300, 0));
-            idle.motion = idleClip;
+            idle.motion = GetSlotClip(controller, FurBrainPet.IdleSlot);
             stateMachine.defaultState = idle;
 
-            var wave = stateMachine.AddState("Wave", new Vector3(300, 120));
-            wave.motion = waveClip;
-
-            var toWave = stateMachine.AddAnyStateTransition(wave);
-            toWave.AddCondition(AnimatorConditionMode.If, 0, FurBrainPet.WaveTrigger);
-            toWave.duration = 0.15f;
-            toWave.canTransitionToSelf = true;
-
-            var toIdle = wave.AddTransition(idle);
-            toIdle.hasExitTime = true;
-            toIdle.exitTime = 0.95f;
-            toIdle.duration = 0.25f;
+            AddAction(controller, stateMachine, idle, "Summon", FurBrainPet.SummonTrigger, FurBrainPet.SummonSlot, 0);
+            AddAction(controller, stateMachine, idle, "Tap", FurBrainPet.TapTrigger, FurBrainPet.TapSlot, 1);
+            AddAction(controller, stateMachine, idle, "Feed", FurBrainPet.FeedTrigger, FurBrainPet.FeedSlot, 2);
 
             EditorUtility.SetDirty(controller);
             AssetDatabase.SaveAssets();
             return controller;
+        }
+
+        /// <summary>One play-once action: trigger → state (from any state) → back to Idle when the clip ends.</summary>
+        static void AddAction(AnimatorController controller, AnimatorStateMachine stateMachine, AnimatorState idle,
+            string stateName, string trigger, string slot, int row)
+        {
+            controller.AddParameter(trigger, AnimatorControllerParameterType.Trigger);
+
+            var state = stateMachine.AddState(stateName, new Vector3(600, row * 80));
+            state.motion = GetSlotClip(controller, slot);
+
+            var enter = stateMachine.AddAnyStateTransition(state);
+            enter.AddCondition(AnimatorConditionMode.If, 0, trigger);
+            enter.duration = 0.15f;
+            enter.canTransitionToSelf = true;
+
+            var exit = state.AddTransition(idle);
+            exit.hasExitTime = true;
+            exit.exitTime = 0.95f; // fraction of whichever clip ends up playing in this state
+            exit.duration = 0.25f;
+        }
+
+        /// <summary>
+        /// The empty placeholder clip for a slot, stored as a sub-asset inside the controller file (like the clips
+        /// inside an FBX). Reused when the controller is rebuilt.
+        /// </summary>
+        static AnimationClip GetSlotClip(AnimatorController controller, string slotName)
+        {
+            var path = AssetDatabase.GetAssetPath(controller);
+            var clip = AssetDatabase.LoadAllAssetsAtPath(path).OfType<AnimationClip>().FirstOrDefault(c => c.name == slotName);
+            if (clip == null)
+            {
+                clip = new AnimationClip { name = slotName };
+                AssetDatabase.AddObjectToAsset(clip, controller);
+            }
+            return clip;
         }
 
         /// <summary>
@@ -150,7 +179,7 @@ namespace FurBrains.EditorTools
             return mask;
         }
 
-        static void BuildPrefab(RuntimeAnimatorController controller)
+        static void BuildPrefab(RuntimeAnimatorController controller, AnimationClip idleClip, AnimationClip actionClip)
         {
             var characterPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(k_CharacterPrefab);
             if (characterPrefab == null)
@@ -207,8 +236,14 @@ namespace FurBrains.EditorTools
                 AddCollider(root, character);
                 root.AddComponent<XRSimpleInteractable>();
 
+                // Mood before pet: FurBrainPet looks up FurBrainMood in Awake (either order works, this reads clearer).
+                root.AddComponent<FurBrainMood>();
                 var pet = root.AddComponent<FurBrainPet>();
                 pet.animator = animator;
+                pet.idleAnimation = idleClip;
+                pet.summonAnimation = actionClip;
+                pet.tapAnimation = actionClip;
+                pet.feedAnimation = actionClip;
 
                 var prefab = PrefabUtility.SaveAsPrefabAsset(root, k_PetPrefabPath, out var ok);
                 if (ok)

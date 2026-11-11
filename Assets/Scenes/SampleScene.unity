@@ -5125,6 +5125,8 @@ MonoBehaviour:
     m_ColorSpace: -1
     m_NumColorKeys: 3
     m_NumAlphaKeys: 2
+  m_HungerBar: {fileID: 0}
+  m_Summoner: {fileID: 0}
 --- !u!114 &1096481948
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -5485,6 +5487,9 @@ MonoBehaviour:
   m_Needs: {fileID: 1984555381}
   m_Summoner: {fileID: 436358036}
   m_MenuManager: {fileID: 2099970472}
+  m_CloseAfterBuying: 0
+  m_MenuPanel: {fileID: 0}
+  m_MenuScale: 0.6
 --- !u!1 &1309057132
 GameObject:
   m_ObjectHideFlags: 0
@@ -7730,6 +7735,7 @@ GameObject:
   - component: {fileID: 1984555383}
   - component: {fileID: 1984555382}
   - component: {fileID: 1984555381}
+  - component: {fileID: 1984555384}
   m_Layer: 0
   m_Name: FurBrains Game
   m_TagString: Untagged
@@ -7782,6 +7788,29 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1984555384
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1984555380}
+  m_Enabled: 0
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ace4876bb70d6cc48933fb38f68508be, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FurBrains.FurBrainFaceDemo
+  m_AutoCycle: 0
+  m_SecondsPerShape: 2
+  m_Weight: 1
+  m_Skip:
+  - Blink
+  - A
+  - I
+  - U
+  - E
+  - O
+  m_Selected: 
 --- !u!114 &2001374502 stripped
 MonoBehaviour:
   m_CorrespondingSourceObject: {fileID: 6402244310720262706, guid: 48cb3fb68c91eb94999fd99957eb0cae, type: 3}
@@ -8359,6 +8388,7 @@ MonoBehaviour:
   m_OptionsButton: {fileID: 1520419809}
   m_CreateButton: {fileID: 1059051467}
   m_MenuManager: {fileID: 2099970472}
+  m_SkipGreeting: 1
 --- !u!114 &2099970472
 MonoBehaviour:
   m_ObjectHideFlags: 0
