@@ -238,6 +238,7 @@ namespace FurBrains.EditorTools
 
                 // Mood before pet: FurBrainPet looks up FurBrainMood in Awake (either order works, this reads clearer).
                 root.AddComponent<FurBrainMood>();
+                root.AddComponent<FurBrainLookAt>(); // neck/head tilt toward the player's height
                 var pet = root.AddComponent<FurBrainPet>();
                 pet.animator = animator;
                 pet.idleAnimation = idleClip;

@@ -17,7 +17,7 @@ namespace FurBrains.EditorTools
     /// <list type="bullet">
     /// <item>Starter food assets in Assets/FurBrains/Food/ (edit their price and hunger in the Inspector).</item>
     /// <item>A "FurBrains Game" object holding PlayerWallet (coins) and FurBrainNeeds (hunger).</item>
-    /// <item>A "Pet HUD" under the UI canvas, top right: coin count and hunger bar, driven by PetHud.</item>
+    /// <item>A "Pet HUD" under the UI canvas, top left: coin count and hunger bar, driven by PetHud.</item>
     /// <item>A FoodMenu on the template's object-menu Content, so the create button opens the food menu.</item>
     /// <item>The FurBrainSummoner's re-summon prompt, pointed at the onboarding's "Prompt Tap to Place".</item>
     /// </list>
@@ -95,6 +95,7 @@ namespace FurBrains.EditorTools
                 Debug.LogWarning("[FurBrains] Couldn't find the object menu's Content; the food menu wasn't set up.");
             }
 
+            FurBrainsHudLayout.Apply();
             Undo.CollapseUndoOperations(undoGroup);
             EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
             Selection.activeGameObject = hud;
@@ -142,11 +143,11 @@ namespace FurBrains.EditorTools
             var panelSprite = AssetDatabase.GetBuiltinExtraResource<Sprite>("UI/Skin/UISprite.psd");
             var roundSprite = AssetDatabase.GetBuiltinExtraResource<Sprite>("UI/Skin/Knob.psd");
 
-            // Top-right corner, to the left of the template's options button.
+            // Top-left corner (FurBrainsHudLayout.Apply sets the final position).
             var hud = CreateUiObject("Pet HUD", canvas);
             var hudRect = (RectTransform)hud.transform;
-            hudRect.anchorMin = hudRect.anchorMax = hudRect.pivot = new Vector2(1f, 1f);
-            hudRect.anchoredPosition = new Vector2(-170f, -30f);
+            hudRect.anchorMin = hudRect.anchorMax = hudRect.pivot = new Vector2(0f, 1f);
+            hudRect.anchoredPosition = new Vector2(30f, -30f);
             hudRect.sizeDelta = new Vector2(230f, 100f);
             var backdrop = hud.AddComponent<Image>();
             backdrop.sprite = panelSprite;
@@ -198,7 +199,7 @@ namespace FurBrains.EditorTools
             return hud;
         }
 
-        static GameObject CreateUiObject(string name, Transform parent)
+        internal static GameObject CreateUiObject(string name, Transform parent)
         {
             var go = new GameObject(name, typeof(RectTransform));
             Undo.RegisterCreatedObjectUndo(go, $"Create {name}");
@@ -208,7 +209,7 @@ namespace FurBrains.EditorTools
         }
 
         /// <summary>Anchors and pivots a child at the given corner, with a pixel offset and size.</summary>
-        static void Place(GameObject go, Vector2 corner, Vector2 offset, Vector2 size)
+        internal static void Place(GameObject go, Vector2 corner, Vector2 offset, Vector2 size)
         {
             var rect = (RectTransform)go.transform;
             rect.anchorMin = rect.anchorMax = rect.pivot = corner;
@@ -218,14 +219,14 @@ namespace FurBrains.EditorTools
 
         // ---------- Helpers ----------
 
-        static T GetOrAdd<T>(GameObject go) where T : Component
+        internal static T GetOrAdd<T>(GameObject go) where T : Component
         {
             var component = go.GetComponent<T>();
             return component != null ? component : Undo.AddComponent<T>(go);
         }
 
         /// <summary>Sets a private [SerializeField] through Unity's serialization, as dragging it in the Inspector would.</summary>
-        static void SetReference(Object target, string field, Object value)
+        internal static void SetReference(Object target, string field, Object value)
         {
             var so = new SerializedObject(target);
             so.FindProperty(field).objectReferenceValue = value;
@@ -233,7 +234,7 @@ namespace FurBrains.EditorTools
         }
 
         /// <summary>Finds a GameObject by name in the open scene, including inactive ones.</summary>
-        static GameObject FindInScene(string name)
+        internal static GameObject FindInScene(string name)
         {
             foreach (var root in SceneManager.GetActiveScene().GetRootGameObjects())
             foreach (var t in root.GetComponentsInChildren<Transform>(true))

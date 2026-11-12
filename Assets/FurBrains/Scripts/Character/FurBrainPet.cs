@@ -118,6 +118,7 @@ namespace FurBrains
 
         XRBaseInteractable m_Interactable;
         FurBrainMood m_Mood;
+        MinigameRunner m_Runner;
         Camera m_Camera;
         float m_SelectStartTime;
         float m_ClearFaceTime = -1f;
@@ -151,6 +152,8 @@ namespace FurBrains
             if (m_Face == null)
                 m_Face = GetComponentInChildren<FurBrainFace>();
             m_Mood = GetComponent<FurBrainMood>();
+            // The pet is spawned at runtime, so it can't have a scene reference dragged in; look the runner up instead.
+            m_Runner = FindAnyObjectByType<MinigameRunner>();
 
             ApplyAnimationClips();
         }
@@ -257,6 +260,12 @@ namespace FurBrains
         /// <summary>React to being fed: feed animation plus the feed expression.</summary>
         public void Eat() => PlayAction(FeedTrigger, m_FeedAnimation, m_FeedExpression);
 
+        /// <summary>
+        /// Cheer (e.g. after a minigame): replays the summon animation and expression. A dedicated celebrate slot can
+        /// replace this later.
+        /// </summary>
+        public void Celebrate() => PlayAction(SummonTrigger, m_SummonAnimation, m_SummonExpression);
+
         /// <summary>React to a tap: tap animation plus the tap expression.</summary>
         public void OnTapped() => PlayAction(TapTrigger, m_TapAnimation, m_TapExpression);
 
@@ -293,6 +302,10 @@ namespace FurBrains
 
         void OnSelectExited(SelectExitEventArgs args)
         {
+            // During a minigame, the player's taps are for the game (hitting the ball, popping bubbles, picking a cup),
+            // so they don't count as tapping the FurBrain. Games can still call OnTapped() themselves for a reaction.
+            if (m_Runner != null && m_Runner.isPlaying)
+                return;
             if (!args.isCanceled && Time.time - m_SelectStartTime <= m_MaxTapDuration)
                 OnTapped();
         }

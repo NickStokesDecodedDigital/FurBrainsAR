@@ -211,6 +211,7 @@ namespace UnityEngine.XR.Templates.AR
         }
 
         FurBrains.FurBrainSummoner m_Summoner;
+        FurBrains.MinigameRunner m_MinigameRunner;
         bool m_IsPointerOverUI;
         bool m_ShowObjectMenu;
         bool m_ShowOptionsModal;
@@ -280,7 +281,8 @@ namespace UnityEngine.XR.Templates.AR
             }
 
             // FurBrains: the create (food) button and its menu only exist while a FurBrain is summoned.
-            var summoned = IsFurBrainSummoned();
+            // FurBrains: the food button and menu need a summoned FurBrain, and are hidden during a minigame.
+            var summoned = IsFurBrainSummoned() && !IsMinigamePlaying();
             if (m_ShowObjectMenu && !summoned)
                 HideMenu();
             if (m_CreateButton.gameObject.activeSelf != summoned)
@@ -348,6 +350,8 @@ namespace UnityEngine.XR.Templates.AR
 
         void ShowMenu()
         {
+            // FurBrains: only one slide-up menu at a time; close the minigame menu.
+            FurBrains.PopupMenu.HideAll();
             m_ShowObjectMenu = true;
             m_ObjectMenu.SetActive(true);
             if (!m_ObjectMenuAnimator.GetBool("Show"))
@@ -459,8 +463,18 @@ namespace UnityEngine.XR.Templates.AR
         // FurBrains: the delete button is available whenever a FurBrain is summoned, not only after tapping it
         // (the template's rule, based on XRI "focus"). With one FurBrain at a time there's no ambiguity about what
         // gets deleted.
+        bool IsMinigamePlaying()
+        {
+            if (m_MinigameRunner == null)
+                m_MinigameRunner = FindAnyObjectByType<FurBrains.MinigameRunner>();
+            return m_MinigameRunner != null && m_MinigameRunner.isPlaying;
+        }
+
         bool HasDeletableObject()
         {
+            // No deleting the FurBrain in the middle of a minigame.
+            if (IsMinigamePlaying())
+                return false;
             if (m_InteractionGroup != null && m_InteractionGroup.focusInteractable != null)
                 return true;
             return IsFurBrainSummoned();

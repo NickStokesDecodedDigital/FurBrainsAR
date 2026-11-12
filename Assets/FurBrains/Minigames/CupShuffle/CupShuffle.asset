@@ -1,0 +1,19 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 94d77a81cb810c34e957b7e6ee520eb7, type: 3}
+  m_Name: CupShuffle
+  m_EditorClassIdentifier: Assembly-CSharp::FurBrains.MinigameDefinition
+  m_DisplayName: Cup Shuffle
+  m_Icon: {fileID: 0}
+  m_Prefab: {fileID: 3029129723626771937, guid: 292711be9a93d8444abcee8a9be3d913, type: 3}
+  m_CoinsPerPoint: 10
+  m_MinimumCoins: 3

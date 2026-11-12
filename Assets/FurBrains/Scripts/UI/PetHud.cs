@@ -8,8 +8,9 @@ namespace FurBrains
     /// Top-right display: the player's coins and the FurBrain's hunger bar.
     /// </summary>
     /// <remarks>
-    /// The HUD only <i>shows</i> values; PlayerWallet and FurBrainNeeds own them. It listens to their change events,
-    /// so the UI and the game logic stay independent (a minigame can add coins without knowing the HUD exists).
+    /// The HUD only <i>shows</i> values; PlayerWallet and FurBrainNeeds own them. It reads them every frame through
+    /// references (the HUD knows about the wallet, never the other way round), so the game logic stays independent of
+    /// the UI: a minigame can add coins without knowing the HUD exists.
     /// The UI objects themselves are created by Tools → FurBrains → Set Up Feeding In Open Scene, and can be restyled
     /// freely in the Scene view.
     /// </remarks>
@@ -55,51 +56,33 @@ namespace FurBrains
                 m_Needs = FindAnyObjectByType<FurBrainNeeds>();
         }
 
-        void OnEnable()
-        {
-            if (m_Wallet != null)
-                m_Wallet.coinsChanged += OnCoinsChanged;
-            if (m_Needs != null)
-                m_Needs.hungerChanged += OnHungerChanged;
-        }
+        // Last coin value written to the text, so it's only rebuilt when the number actually changes.
+        int m_ShownCoins = int.MinValue;
 
-        void OnDisable()
-        {
-            if (m_Wallet != null)
-                m_Wallet.coinsChanged -= OnCoinsChanged;
-            if (m_Needs != null)
-                m_Needs.hungerChanged -= OnHungerChanged;
-        }
-
-        void Start()
-        {
-            // Events only fire on changes, so show the starting values once.
-            if (m_Wallet != null)
-                OnCoinsChanged(m_Wallet.coins);
-            if (m_Needs != null)
-                OnHungerChanged(m_Needs.hunger);
-        }
-
+        // Reads the current values every frame, like a UMG property binding in Unreal: the HUD holds references to
+        // the wallet and needs (its "cast to the player") and simply asks them what to show.
         void Update()
         {
+            if (m_Wallet != null && m_CoinsText != null && m_Wallet.coins != m_ShownCoins)
+            {
+                // ToString makes a new string (garbage for the GC to collect later), so skip it when nothing changed.
+                m_ShownCoins = m_Wallet.coins;
+                m_CoinsText.text = m_ShownCoins.ToString();
+            }
+
             // The hunger bar is about the FurBrain in front of you, so it only shows while one is summoned.
             // (Hunger itself keeps being tracked by FurBrainNeeds either way.)
-            if (m_HungerBar == null)
-                return;
             var show = m_Summoner != null && m_Summoner.hasSummoned;
-            if (m_HungerBar.activeSelf != show)
+            if (m_HungerBar != null && m_HungerBar.activeSelf != show)
                 m_HungerBar.SetActive(show);
+
+            if (show)
+                ShowHunger();
         }
 
-        void OnCoinsChanged(int coins)
+        void ShowHunger()
         {
-            if (m_CoinsText != null)
-                m_CoinsText.text = coins.ToString();
-        }
-
-        void OnHungerChanged(float hunger)
-        {
-            if (m_HungerFill == null)
+            if (m_HungerFill == null || m_Needs == null)
                 return;
             var t = m_Needs.hungerNormalized;
             // Size the fill by moving its right anchor: anchors are fractions of the parent (the bar background), so

@@ -45,6 +45,7 @@ GameObject:
   - component: {fileID: 6220022318882243731}
   - component: {fileID: 3077716982258315881}
   - component: {fileID: 1660271106669301248}
+  - component: {fileID: 3101793148715764895}
   m_Layer: 0
   m_Name: ZiaraPet
   m_TagString: Untagged
@@ -224,6 +225,24 @@ MonoBehaviour:
   m_TurnSpeed: 45
   m_StartTurnAngle: 20
   m_StopTurnAngle: 2
+--- !u!114 &3101793148715764895
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1596680960204291625}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4b2d7691f47475f498e2e38098b25100, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FurBrains.FurBrainLookAt
+  m_BoneNames:
+  - neck_01
+  - neck_02
+  - head
+  m_MaxTilt: 35
+  m_Speed: 4
 --- !u!1001 &4884615469490806584
 PrefabInstance:
   m_ObjectHideFlags: 0
