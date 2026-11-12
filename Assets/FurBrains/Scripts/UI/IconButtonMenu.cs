@@ -32,7 +32,7 @@ namespace FurBrains
 
         [SerializeField, Range(0.3f, 1f)]
         [Tooltip("Size of the whole menu (panel, buttons and cancel button) relative to the template's design.")]
-        float m_MenuScale = 0.78f;
+        float m_MenuScale = 0.9f;
 
         /// <summary>One built button and when it can be used.</summary>
         struct Entry
@@ -164,7 +164,7 @@ namespace FurBrains
 
             // The panel's anchors stretch it across its parent (the full screen width), and sizeDelta.x is extra width
             // on top of that. Scaled by s, the panel shows as s × (parentWidth + extra); for that to equal parentWidth,
-            // extra = parentWidth × (1/s − 1). E.g. at 0.78 the panel is ~28% wider before scaling, so it fits exactly.
+            // extra = parentWidth × (1/s − 1). E.g. at 0.9 the panel is ~11% wider before scaling, so it fits exactly.
             if (m_MenuPanel.parent is RectTransform container)
             {
                 m_FittedWidth = container.rect.width;
