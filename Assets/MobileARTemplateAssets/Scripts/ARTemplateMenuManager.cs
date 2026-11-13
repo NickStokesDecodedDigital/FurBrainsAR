@@ -216,6 +216,7 @@ namespace UnityEngine.XR.Templates.AR
         bool m_ShowObjectMenu;
         bool m_ShowOptionsModal;
         bool m_VisualizePlanes = true;
+        bool m_HadFurBrain; // FurBrains: whether a FurBrain was summoned last frame (to notice summon/delete)
         bool m_ShowDebugMenu;
         bool m_InitializingDebugMenu;
         float m_DebugMenuPlanesButtonValue = 0f;
@@ -287,6 +288,16 @@ namespace UnityEngine.XR.Templates.AR
                 HideMenu();
             if (m_CreateButton.gameObject.activeSelf != summoned)
                 m_CreateButton.gameObject.SetActive(summoned);
+
+            // FurBrains: the surface dots are only needed to choose where to summon. Hide them once a FurBrain is
+            // placed, and bring them back when it's deleted so the player can see where to place it again.
+            // Only on a change, so the player can still switch them on from the Options menu in between.
+            var hasFurBrain = IsFurBrainSummoned();
+            if (hasFurBrain != m_HadFurBrain)
+            {
+                m_HadFurBrain = hasFurBrain;
+                SetPlanesVisible(!hasFurBrain);
+            }
 
             if (m_ShowObjectMenu || m_ShowOptionsModal)
             {
@@ -381,11 +392,18 @@ namespace UnityEngine.XR.Templates.AR
         /// <summary>
         /// Shows or hides the plane debug visuals.
         /// </summary>
-        public void ShowHideDebugPlane()
+        public void ShowHideDebugPlane() => SetPlanesVisible(!m_VisualizePlanes);
+
+        /// <summary>
+        /// FurBrains: shows or hides the AR surface visuals (the same as the Options menu's "Visualize Surfaces"
+        /// switch, which is kept in sync). The planes fade out rather than vanishing, when plane fading is on.
+        /// </summary>
+        public void SetPlanesVisible(bool visible)
         {
-            m_VisualizePlanes = !m_VisualizePlanes;
-            m_DebugPlaneSlider.value = m_VisualizePlanes ? 1 : 0;
-            ChangePlaneVisibility(m_VisualizePlanes);
+            m_VisualizePlanes = visible;
+            if (m_DebugPlaneSlider != null)
+                m_DebugPlaneSlider.value = visible ? 1 : 0;
+            ChangePlaneVisibility(visible);
         }
 
         /// <summary>

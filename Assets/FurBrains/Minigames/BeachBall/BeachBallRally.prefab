@@ -46,6 +46,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FurBrains.BeachBallMinigame
   m_Ball: {fileID: 8138691973487941597}
+  m_BumpSound: {fileID: 8300000, guid: 51822399b976f8e448c63148d3c1407b, type: 3}
   m_StartFlightTime: 1.8
   m_MinFlightTime: 1
   m_RallyForMaxSpeed: 30

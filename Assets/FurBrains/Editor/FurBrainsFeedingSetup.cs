@@ -243,6 +243,21 @@ namespace FurBrains.EditorTools
             return null;
         }
 
+        /// <summary>
+        /// The first of several possible names that exists in the open scene (e.g. a renamed object's new name, then
+        /// its old one). <c>params</c> lets callers list names as separate arguments, like C++ variadic arguments.
+        /// </summary>
+        internal static GameObject FindFirstInScene(params string[] names)
+        {
+            foreach (var name in names)
+            {
+                var found = FindInScene(name);
+                if (found != null)
+                    return found;
+            }
+            return null;
+        }
+
         /// <summary>The "Content" of the template's object menu scroll view.</summary>
         static GameObject FindMenuContent()
         {

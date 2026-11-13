@@ -24,6 +24,12 @@ namespace FurBrains
         [Tooltip("The ball object (a child of this prefab).")]
         Transform m_Ball;
 
+        [SerializeField]
+        [Tooltip("Played when the ball is hit, by the player or the FurBrain.")]
+        AudioClip m_BumpSound;
+
+        AudioSource m_Audio;
+
         [Header("Feel")]
         [SerializeField]
         [Tooltip("Seconds for the ball to reach the player at the start of a rally.")]
@@ -74,10 +80,21 @@ namespace FurBrains
 
         protected override void OnBegin()
         {
+            // The prefab may not have an AudioSource yet: add one if it's missing.
+            m_Audio = GetComponent<AudioSource>();
+            if (m_Audio == null)
+                m_Audio = gameObject.AddComponent<AudioSource>();
+            m_Audio.playOnAwake = false;
+
             m_Rally = 0;
             currentScore = 0;
             m_Ball.position = PetPoint();
             // A short pause, then the FurBrain serves.
+
+            // She serves: play the same reaction as when she hits it back.
+            if (context.pet != null)
+                context.pet.OnTapped();
+            PlayBump();
             Launch(Phase.ToPlayer, PetPoint(), PlayerTarget(), FlightTime() + 0.5f);
         }
 
@@ -106,6 +123,7 @@ namespace FurBrains
                         // The FurBrain hits it back with its head.
                         if (context.pet != null)
                             context.pet.OnTapped();
+                        PlayBump();
                         Launch(Phase.ToPlayer, m_To, PlayerTarget(), FlightTime());
                     }
                     break;
@@ -113,6 +131,12 @@ namespace FurBrains
 
             // A lazy spin so it reads as a beach ball.
             m_Ball.Rotate(Vector3.right, 180f * Time.deltaTime, Space.Self);
+        }
+
+        void PlayBump()
+        {
+            if (m_BumpSound != null)
+                m_Audio.PlayOneShot(m_BumpSound);
         }
 
         /// <summary>If the player tapped the ball while it's close enough, send it back to the FurBrain.</summary>
@@ -127,6 +151,7 @@ namespace FurBrains
 
             m_Rally++;
             currentScore = m_Rally;
+            PlayBump();
             Launch(Phase.ToPet, m_Ball.position, PetPoint(), FlightTime());
             return true;
         }

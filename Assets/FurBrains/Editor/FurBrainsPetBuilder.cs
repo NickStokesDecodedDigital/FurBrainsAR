@@ -23,7 +23,8 @@ namespace FurBrains.EditorTools
     /// </code>
     /// Ziara.prefab is <i>nested</i>, not copied, so rebuilding Ziara with the character builder flows through.
     /// Re-run this tool after changing it; it overwrites the generated assets in place (same GUIDs, so scene
-    /// references such as the ObjectSpawner's prefab list stay valid).
+    /// references such as the ObjectSpawner's prefab list stay valid). Inspector choices on the previous prefab's
+    /// FurBrainPet, FurBrainMood and FurBrainLookAt (animations, expressions, mood bands, tilt) are carried over.
     /// </remarks>
     public static class FurBrainsPetBuilder
     {
@@ -38,7 +39,7 @@ namespace FurBrains.EditorTools
         const string k_PetPrefabPath = "Assets/FurBrains/Prefabs/ZiaraPet.prefab";
 
         // Height of the placed FurBrain in metres.
-        const float k_TargetHeight = 0.3f;
+        const float k_TargetHeight = 0.6f;
 
         [MenuItem("Tools/FurBrains/Build Ziara Pet Prefab")]
         static void Build()
@@ -189,6 +190,8 @@ namespace FurBrains.EditorTools
             }
 
             EnsureFolder(Path.GetDirectoryName(k_PetPrefabPath));
+            // The prefab we're about to overwrite (null on the first build): its settings are copied across below.
+            var previous = AssetDatabase.LoadAssetAtPath<GameObject>(k_PetPrefabPath);
             var scene = EditorSceneManager.NewPreviewScene();
             try
             {
@@ -237,14 +240,19 @@ namespace FurBrains.EditorTools
                 root.AddComponent<XRSimpleInteractable>();
 
                 // Mood before pet: FurBrainPet looks up FurBrainMood in Awake (either order works, this reads clearer).
-                root.AddComponent<FurBrainMood>();
-                root.AddComponent<FurBrainLookAt>(); // neck/head tilt toward the player's height
+                var mood = root.AddComponent<FurBrainMood>();
+                var lookAt = root.AddComponent<FurBrainLookAt>(); // neck/head tilt toward the player's height
                 var pet = root.AddComponent<FurBrainPet>();
-                pet.animator = animator;
+                // Defaults for a first build...
                 pet.idleAnimation = idleClip;
                 pet.summonAnimation = actionClip;
                 pet.tapAnimation = actionClip;
                 pet.feedAnimation = actionClip;
+                // ...replaced by whatever you set on the previous prefab, so rebuilding keeps your choices.
+                KeepSettings(previous, mood);
+                KeepSettings(previous, lookAt);
+                KeepSettings(previous, pet);
+                pet.animator = animator; // always this build's Animator, never the old prefab's
 
                 var prefab = PrefabUtility.SaveAsPrefabAsset(root, k_PetPrefabPath, out var ok);
                 if (ok)
@@ -262,6 +270,35 @@ namespace FurBrains.EditorTools
             {
                 EditorSceneManager.ClosePreviewScene(scene);
             }
+        }
+
+        /// <summary>
+        /// Copies every Inspector field of <typeparamref name="T"/> from the previous prefab onto the new component.
+        /// </summary>
+        /// <remarks>
+        /// EditorJsonUtility writes the component's serialized fields to JSON and reads them back onto another
+        /// object of the same type: a field-by-field copy, like a C++ copy assignment generated for you.
+        /// Asset references (animation clips) carry over as they are. References to objects <i>inside</i> the old
+        /// prefab (its Animator, its FurBrainFace) would point into the file being replaced, so those are cleared;
+        /// the scripts find their own in Awake when the field is empty.
+        /// </remarks>
+        static void KeepSettings<T>(GameObject previous, T target) where T : Component
+        {
+            if (previous == null || !previous.TryGetComponent<T>(out var old))
+                return;
+
+            EditorJsonUtility.FromJsonOverwrite(EditorJsonUtility.ToJson(old), target);
+
+            var serialized = new SerializedObject(target);
+            var property = serialized.GetIterator();
+            while (property.NextVisible(true))
+            {
+                if (property.propertyType == SerializedPropertyType.ObjectReference &&
+                    property.objectReferenceValue != null &&
+                    AssetDatabase.GetAssetPath(property.objectReferenceValue) == k_PetPrefabPath)
+                    property.objectReferenceValue = null;
+            }
+            serialized.ApplyModifiedPropertiesWithoutUndo();
         }
 
         /// <summary>Scale to toy size, turn the face toward +Z, and stand the feet on y = 0.</summary>

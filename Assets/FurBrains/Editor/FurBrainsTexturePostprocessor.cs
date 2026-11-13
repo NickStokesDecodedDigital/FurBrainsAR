@@ -18,7 +18,7 @@ namespace FurBrains.EditorTools
         const int k_MaxSize = 2048;
 
         // Bump this when changing the rules below: Unity then reimports affected textures automatically.
-        public override uint GetVersion() => 2;
+        public override uint GetVersion() => 3;
 
         void OnPreprocessTexture()
         {
@@ -41,6 +41,16 @@ namespace FurBrains.EditorTools
 
             importer.maxTextureSize = k_MaxSize;
             importer.mipmapEnabled = true;
+
+            // UI pictures (Assets/FurBrains/UI/...): ready-to-use sprites with see-through backgrounds. Mipmaps
+            // (smaller copies for distant 3D objects) aren't needed for UI drawn at a fixed size on screen.
+            if (assetPath.StartsWith(k_Root + "UI/"))
+            {
+                importer.textureType = TextureImporterType.Sprite;
+                importer.spriteImportMode = SpriteImportMode.Single;
+                importer.alphaIsTransparency = true;
+                importer.mipmapEnabled = false;
+            }
 
             // Android: ASTC is the GPU-native compressed format on modern phones (~4-8x smaller in memory than RGBA32).
             var android = importer.GetPlatformTextureSettings("Android");

@@ -16,7 +16,7 @@ namespace FurBrains.EditorTools
     /// <remarks>
     /// Creates (or reuses, if they already exist):
     /// <list type="bullet">
-    /// <item>The Beach Ball Rally, Bubble Pop and Cup Shuffle prefabs, materials and MinigameDefinitions, in
+    /// <item>The Beach Ball Rally, Bubble Pop, Cup Shuffle and Copy Ziara prefabs, materials and MinigameDefinitions, in
     /// Assets/FurBrains/Minigames/ (existing assets are kept, so Inspector tweaks survive re-running).</item>
     /// <item>A MinigameRunner on "FurBrains Game".</item>
     /// <item>A "Minigame HUD" under the UI canvas: exit button, live score and results panel.</item>
@@ -39,7 +39,10 @@ namespace FurBrains.EditorTools
             Undo.SetCurrentGroupName("Set Up FurBrains Minigames");
             var undoGroup = Undo.GetCurrentGroup();
 
-            var definitions = new[] { LoadOrCreateBeachBall(), LoadOrCreateBubblePop(), LoadOrCreateCupShuffle() };
+            var definitions = new[]
+            {
+                LoadOrCreateBeachBall(), LoadOrCreateBubblePop(), LoadOrCreateCupShuffle(), LoadOrCreateCopyZiara(),
+            };
 
             var game = FindInScene("FurBrains Game");
             if (game == null)
@@ -88,11 +91,13 @@ namespace FurBrains.EditorTools
 
         static bool SetUpMenu(MinigameRunner runner, MinigameDefinition[] definitions)
         {
-            var createButton = FindInScene("Create Button");
-            var foodMenu = FindInScene("Object Menu Animator");
+            // The food button and menu may have been renamed from the template's names; accept either.
+            var createButton = FindFirstInScene("Food Button", "Create Button");
+            var foodMenu = FindFirstInScene("Food Menu Animator", "Object Menu Animator");
             if (createButton == null || foodMenu == null)
             {
-                Debug.LogError("[FurBrains] Couldn't find the template's \"Create Button\" or \"Object Menu Animator\".");
+                Debug.LogError("[FurBrains] Couldn't find the food button (\"Food Button\"/\"Create Button\") or the food " +
+                               "menu (\"Food Menu Animator\"/\"Object Menu Animator\").");
                 return false;
             }
 
@@ -435,6 +440,51 @@ namespace FurBrains.EditorTools
             }
             // Won or lost: a win counts as 1 point, so 10 coins per point = 10 for a win; a loss pays the minimum, 3.
             return LoadOrCreateDefinition(k_CupFolder + "/CupShuffle.asset", "Cup Shuffle", prefab, 10, 3);
+        }
+
+        // ---------- Copy Ziara assets ----------
+
+        const string k_CopyFolder = "Assets/FurBrains/Minigames/CopyZiara";
+
+        static MinigameDefinition LoadOrCreateCopyZiara()
+        {
+            EnsureFolder(k_CopyFolder);
+            var prefabPath = k_CopyFolder + "/CopyZiara.prefab";
+            var prefab = AssetDatabase.LoadAssetAtPath<CopyZiaraMinigame>(prefabPath);
+            if (prefab == null)
+            {
+                var root = new GameObject("CopyZiara");
+                try
+                {
+                    // [RequireComponent(typeof(AudioSource))] on the game adds the AudioSource along with it.
+                    var game = root.AddComponent<CopyZiaraMinigame>();
+                    var audio = root.GetComponent<AudioSource>();
+                    audio.playOnAwake = false;
+                    audio.spatialBlend = 0f; // 2D: same volume wherever the phone is, so it's always clear
+
+                    // The pads' colour is set per pad at runtime; this material only needs emission switched on.
+                    // If no material asset uses the emission shader variant, a build can leave it out, and lighting
+                    // the pads at runtime would then do nothing.
+                    var material = CreateMaterial(k_CopyFolder + "/M_Pad.mat", Color.white, 0.3f, false);
+                    material.EnableKeyword("_EMISSION");
+                    material.SetColor("_EmissionColor", Color.black);
+                    material.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
+                    EditorUtility.SetDirty(material);
+
+                    // A cylinder is 2 units tall: Y scale 0.01 makes a 2 cm thick disc. Its width is set at runtime
+                    // from the FurBrain's height.
+                    var pad = CreateShape(PrimitiveType.Cylinder, "Pad", root.transform, new Vector3(1f, 0.01f, 1f), material);
+                    pad.SetActive(false); // a template: the game copies it
+                    SetReference(game, "m_PadTemplate", pad);
+                    prefab = PrefabUtility.SaveAsPrefabAsset(root, prefabPath).GetComponent<CopyZiaraMinigame>();
+                }
+                finally
+                {
+                    Object.DestroyImmediate(root);
+                }
+            }
+            // Score = longest sequence copied: 1 coin per step, at least 2.
+            return LoadOrCreateDefinition(k_CopyFolder + "/CopyZiara.asset", "Copy Ziara", prefab, 1, 2);
         }
 
         // ---------- Shared asset helpers ----------

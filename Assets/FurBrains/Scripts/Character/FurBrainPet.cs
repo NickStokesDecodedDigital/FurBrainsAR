@@ -60,6 +60,13 @@ namespace FurBrains
         [Tooltip("Plays once when the FurBrain is fed.")]
         AnimationClip m_FeedAnimation;
 
+        [Header("Sounds")]
+        [SerializeField]
+        [Tooltip("Played when the FurBrain is fed.")]
+        AudioClip m_EatSound;
+
+        AudioSource m_Audio;
+
         [Header("Expressions")]
         [SerializeField]
         [Tooltip("Blend shapes shown while the summon animation plays (see FurBrainMood for Ziara's shape names).")]
@@ -146,6 +153,14 @@ namespace FurBrains
 
         void Awake()
         {
+            // Reuse the pet's AudioSource (the summon sound's), or add one if there isn't any.
+            m_Audio = GetComponent<AudioSource>();
+            if (m_Audio == null)
+            {
+                m_Audio = gameObject.AddComponent<AudioSource>();
+                m_Audio.playOnAwake = false;
+            }
+
             m_Interactable = GetComponent<XRBaseInteractable>();
             if (m_Animator == null)
                 m_Animator = GetComponentInChildren<Animator>();
@@ -258,7 +273,12 @@ namespace FurBrains
         }
 
         /// <summary>React to being fed: feed animation plus the feed expression.</summary>
-        public void Eat() => PlayAction(FeedTrigger, m_FeedAnimation, m_FeedExpression);
+        public void Eat()
+        {
+            PlayAction(FeedTrigger, m_FeedAnimation, m_FeedExpression);
+            if (m_EatSound != null)
+                m_Audio.PlayOneShot(m_EatSound);
+        }
 
         /// <summary>
         /// Cheer (e.g. after a minigame): replays the summon animation and expression. A dedicated celebrate slot can

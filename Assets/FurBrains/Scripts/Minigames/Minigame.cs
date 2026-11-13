@@ -161,10 +161,10 @@ namespace FurBrains
         static float MeasurePetHeight(Transform pet)
         {
             if (pet == null)
-                return 0.3f;
+                return 0.6f; // fallback: the pet builder makes FurBrains 0.6 m tall
             var renderers = pet.GetComponentsInChildren<Renderer>();
             if (renderers.Length == 0)
-                return 0.3f;
+                return 0.6f; // fallback: the pet builder makes FurBrains 0.6 m tall
             var top = float.MinValue;
             foreach (var r in renderers)
                 top = Mathf.Max(top, r.bounds.max.y);
