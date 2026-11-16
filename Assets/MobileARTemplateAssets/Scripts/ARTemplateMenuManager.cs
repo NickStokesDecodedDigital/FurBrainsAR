@@ -301,7 +301,9 @@ namespace UnityEngine.XR.Templates.AR
 
             if (m_ShowObjectMenu || m_ShowOptionsModal)
             {
-                if (!m_IsPointerOverUI && (m_TapStartPositionInput.TryReadValue(out _) || m_DragCurrentPositionInput.TryReadValue(out _)))
+                // FurBrains: don't close the menu while a food is being dragged out of it toward the FurBrain.
+                if (!m_IsPointerOverUI && !FurBrains.DragToPet.isDragging &&
+                    (m_TapStartPositionInput.TryReadValue(out _) || m_DragCurrentPositionInput.TryReadValue(out _)))
                 {
                     if (m_ShowObjectMenu)
                         HideMenu();
@@ -358,6 +360,9 @@ namespace UnityEngine.XR.Templates.AR
 
             HideMenu();
         }
+
+        /// <summary>FurBrains: whether the food (object) menu is open. Closing only slides it down; it stays active.</summary>
+        public bool isFoodMenuShown => m_ShowObjectMenu;
 
         void ShowMenu()
         {

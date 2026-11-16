@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Audio;
 using UnityEngine.Serialization;
 using UnityEngine.XR.Interaction.Toolkit;
 using UnityEngine.XR.Interaction.Toolkit.Interactables;
@@ -62,10 +63,26 @@ namespace FurBrains
 
         [Header("Sounds")]
         [SerializeField]
-        [Tooltip("Played when the FurBrain is fed.")]
-        AudioClip m_EatSound;
+        [Tooltip("Played when the FurBrain is fed. An Audio Clip, or an Audio Random Container for variety " +
+                 "(random clip, pitch and volume each time).")]
+        AudioResource m_EatSound; // AudioResource is the base class of both AudioClip and AudioRandomContainer
 
-        AudioSource m_Audio;
+        [Header("Effects")]
+        [SerializeField]
+        [Tooltip("Particle system (a child of this prefab) that sprays crumbs when the FurBrain eats. " +
+                 "Made by Tools → FurBrains → Set Up Eat Effect (and by the pet builder).")]
+        ParticleSystem m_EatBurst;
+
+        [SerializeField, Min(0)]
+        [Tooltip("How many crumbs fly out per bite.")]
+        int m_EatCrumbs = 16;
+
+        [SerializeField, Range(0f, 1.2f)]
+        [Tooltip("Where the crumbs come from, as a fraction of the FurBrain's height (about mouth height).")]
+        float m_EatBurstHeight = 0.6f;
+
+        AudioSource m_Audio;        // the pet's main AudioSource (also plays the summon sound on spawn)
+        AudioSource m_EffectsAudio; // a second one for Audio Random Containers, so they never cut off the summon sound
 
         [Header("Expressions")]
         [SerializeField]
@@ -151,6 +168,9 @@ namespace FurBrains
         /// <summary>Clip played when fed.</summary>
         public AnimationClip feedAnimation { get => m_FeedAnimation; set => m_FeedAnimation = value; }
 
+        /// <summary>Particle system that sprays crumbs when the FurBrain eats.</summary>
+        public ParticleSystem eatBurst { get => m_EatBurst; set => m_EatBurst = value; }
+
         void Awake()
         {
             // Reuse the pet's AudioSource (the summon sound's), or add one if there isn't any.
@@ -160,6 +180,13 @@ namespace FurBrains
                 m_Audio = gameObject.AddComponent<AudioSource>();
                 m_Audio.playOnAwake = false;
             }
+            // Containers play with AudioSource.Play(), which plays one sound at a time per AudioSource, so they get
+            // their own source. Copy the main one's settings (volume, 2D/3D, mixer output) so both sound alike.
+            m_EffectsAudio = gameObject.AddComponent<AudioSource>();
+            m_EffectsAudio.playOnAwake = false;
+            m_EffectsAudio.volume = m_Audio.volume;
+            m_EffectsAudio.spatialBlend = m_Audio.spatialBlend;
+            m_EffectsAudio.outputAudioMixerGroup = m_Audio.outputAudioMixerGroup;
 
             m_Interactable = GetComponent<XRBaseInteractable>();
             if (m_Animator == null)
@@ -272,12 +299,65 @@ namespace FurBrains
             }
         }
 
-        /// <summary>React to being fed: feed animation plus the feed expression.</summary>
-        public void Eat()
+        /// <summary>React to being fed: feed animation, feed expression, eat sound and crumbs.</summary>
+        public void Eat() => Eat(Color.clear);
+
+        /// <summary>
+        /// React to being fed, with crumbs in <paramref name="crumbColor"/> (e.g. the food's colour). A clear colour
+        /// (alpha 0) keeps the crumb colour set on the particle system. Two methods with the same name and different
+        /// parameters is overloading, as in C++.
+        /// </summary>
+        public void Eat(Color crumbColor)
         {
             PlayAction(FeedTrigger, m_FeedAnimation, m_FeedExpression);
-            if (m_EatSound != null)
-                m_Audio.PlayOneShot(m_EatSound);
+            PlaySound(m_EatSound);
+            SprayCrumbs(crumbColor);
+        }
+
+        void SprayCrumbs(Color color)
+        {
+            if (m_EatBurst == null || m_EatCrumbs <= 0)
+                return;
+
+            // In front of the FurBrain's face: up by a fraction of its height (measured from its renderers, so it
+            // fits any size), and a little toward the player.
+            var height = 0.3f;
+            var renderers = GetComponentsInChildren<Renderer>();
+            if (renderers.Length > 0)
+            {
+                var top = float.MinValue;
+                foreach (var r in renderers)
+                    top = Mathf.Max(top, r.bounds.max.y);
+                height = top - transform.position.y;
+            }
+            m_EatBurst.transform.position = transform.position + transform.up * (height * m_EatBurstHeight) +
+                                            transform.forward * (height * 0.15f);
+
+            // Crumbs in the food's colour, each a random mix between it and a lighter version, so they sparkle a bit.
+            if (color.a > 0f)
+            {
+                var main = m_EatBurst.main;
+                main.startColor = new ParticleSystem.MinMaxGradient(color, Color.Lerp(color, Color.white, 0.4f));
+            }
+            m_EatBurst.Emit(m_EatCrumbs);
+        }
+
+        /// <summary>Plays a sound effect: either a single clip or an Audio Random Container.</summary>
+        void PlaySound(AudioResource sound)
+        {
+            // "is" checks the real type and, if it matches, gives a typed variable: like a C++ dynamic_cast plus
+            // a null check in one step.
+            if (sound is AudioClip clip)
+            {
+                m_Audio.PlayOneShot(clip); // a plain clip: layer it on top of anything already playing
+            }
+            else if (sound != null)
+            {
+                // A container (PlayOneShot only accepts clips): set it as the source's resource and Play. The
+                // container picks the clip, pitch and volume itself.
+                m_EffectsAudio.resource = sound;
+                m_EffectsAudio.Play();
+            }
         }
 
         /// <summary>

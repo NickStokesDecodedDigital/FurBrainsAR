@@ -405,7 +405,118 @@ namespace FurBrains.EditorTools
                     Object.DestroyImmediate(root);
                 }
             }
+            AddBubblePopEffects(); // adds the pop particle systems if the prefab doesn't have them yet
             return LoadOrCreateDefinition(k_BubbleFolder + "/BubblePop.asset", "Bubble Pop", prefab, 1, 2);
+        }
+
+        [MenuItem("Tools/FurBrains/Add Bubble Pop Effects")]
+        static void AddBubblePopEffectsMenu() => AddBubblePopEffects();
+
+        /// <summary>
+        /// Adds the two pop particle systems ("Pop Burst" and "Gold Burst") to BubblePop.prefab and links them to the
+        /// game's fields. Skips any that are already linked, so tweaks made in the Inspector are kept.
+        /// </summary>
+        /// <remarks>
+        /// LoadPrefabContents opens the prefab file in an invisible editing scene (what Prefab Mode does behind the
+        /// scenes); SaveAsPrefabAsset writes it back to the same file, keeping its GUID; UnloadPrefabContents closes it.
+        /// </remarks>
+        static void AddBubblePopEffects()
+        {
+            var path = k_BubbleFolder + "/BubblePop.prefab";
+            if (AssetDatabase.LoadAssetAtPath<GameObject>(path) == null)
+            {
+                Debug.LogWarning($"[FurBrains] {path} not found. Run Set Up Minigames In Open Scene first.");
+                return;
+            }
+
+            var root = PrefabUtility.LoadPrefabContents(path);
+            try
+            {
+                var game = root.GetComponent<BubblePopMinigame>();
+                var so = new SerializedObject(game);
+                var template = (GameObject)so.FindProperty("m_BubbleTemplate").objectReferenceValue;
+                if (template == null)
+                {
+                    Debug.LogWarning("[FurBrains] Bubble Pop has no bubble template, so the pop effects can't be made.");
+                    return;
+                }
+                var bubbleMaterial = template.GetComponent<Renderer>().sharedMaterial;
+                var goldMaterial = (Material)so.FindProperty("m_GoldMaterial").objectReferenceValue;
+                var mesh = template.GetComponent<MeshFilter>().sharedMesh;
+
+                var added = false;
+                var pop = so.FindProperty("m_PopBurst");
+                if (pop.objectReferenceValue == null)
+                {
+                    pop.objectReferenceValue = CreateBurst("Pop Burst", root.transform, mesh, bubbleMaterial);
+                    added = true;
+                }
+                var gold = so.FindProperty("m_GoldBurst");
+                if (gold.objectReferenceValue == null)
+                {
+                    gold.objectReferenceValue = CreateBurst("Gold Burst", root.transform, mesh,
+                        goldMaterial != null ? goldMaterial : bubbleMaterial);
+                    added = true;
+                }
+
+                if (added)
+                {
+                    so.ApplyModifiedPropertiesWithoutUndo();
+                    PrefabUtility.SaveAsPrefabAsset(root, path);
+                    Debug.Log($"[FurBrains] Added pop particle systems to {path}. Select them in the prefab to tweak.");
+                }
+            }
+            finally
+            {
+                PrefabUtility.UnloadPrefabContents(root);
+            }
+        }
+
+        /// <summary>
+        /// A particle system for pop bursts: a short spray of tiny spheres in the given material that fly outward,
+        /// fall a little and shrink away. Emission is off; BubblePopMinigame.Burst calls Emit when a bubble pops.
+        /// </summary>
+        /// <remarks>
+        /// A ParticleSystem's settings are grouped into "modules" (main, emission, shape, size over lifetime...).
+        /// Each property like <c>ps.main</c> returns a small struct that writes straight through to the particle
+        /// system, which is why it's stored in a local variable and then changed. These are the same settings shown
+        /// in the Particle System Inspector, so everything here can be tweaked there afterwards.
+        /// </remarks>
+        static ParticleSystem CreateBurst(string name, Transform parent, Mesh mesh, Material material)
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(parent, false);
+            var ps = go.AddComponent<ParticleSystem>();
+
+            var main = ps.main;
+            main.playOnAwake = false;
+            main.loop = false;
+            main.startLifetime = new ParticleSystem.MinMaxCurve(0.25f, 0.45f); // random between the two, in seconds
+            main.startSpeed = new ParticleSystem.MinMaxCurve(0.15f, 0.35f);    // metres per second
+            main.startSize = 0.015f;            // droplet size for an average bubble (the game scales it per bubble)
+            main.gravityModifier = 0.3f;        // droplets drop a little
+            // World space: droplets already in flight stay put when the emitter moves to the next bubble.
+            main.simulationSpace = ParticleSystemSimulationSpace.World;
+            main.maxParticles = 200;
+
+            var emission = ps.emission;
+            emission.enabled = false; // no automatic emission: the game emits on demand
+
+            var shape = ps.shape;
+            shape.shapeType = ParticleSystemShapeType.Sphere; // droplets start on a small sphere and fly outward
+            shape.radius = 0.02f;                              // spray area for an average bubble (scaled per bubble)
+
+            var size = ps.sizeOverLifetime;
+            size.enabled = true;
+            size.size = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.Linear(0f, 1f, 1f, 0f)); // shrink to nothing
+
+            // Draw each droplet as a small copy of the bubble's sphere mesh in the bubble's material.
+            var particleRenderer = go.GetComponent<ParticleSystemRenderer>();
+            particleRenderer.renderMode = ParticleSystemRenderMode.Mesh;
+            particleRenderer.mesh = mesh;
+            particleRenderer.sharedMaterial = material;
+            particleRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            return ps;
         }
 
         // ---------- Cup Shuffle assets ----------

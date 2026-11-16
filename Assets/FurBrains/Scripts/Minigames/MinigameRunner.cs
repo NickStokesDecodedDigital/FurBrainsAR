@@ -1,5 +1,6 @@
 using System;
 using UnityEngine;
+using UnityEngine.Audio;
 
 namespace FurBrains
 {
@@ -23,6 +24,24 @@ namespace FurBrains
         [Tooltip("Found in the scene automatically if left empty.")]
         PlayerWallet m_Wallet;
 
+        [SerializeField]
+        [Tooltip("The FurBrain's needs (Play goes up after a game). Found in the scene automatically if left empty.")]
+        FurBrainNeeds m_Needs;
+
+        [SerializeField]
+        [Tooltip("Played when any minigame ends (as the results appear). An Audio Clip, or an Audio Random " +
+                 "Container for variety.")]
+        AudioResource m_CompleteSound; // AudioResource is the base class of both AudioClip and AudioRandomContainer
+
+        [SerializeField, Min(0)]
+        [Tooltip("How much the FurBrain's Play need rises per second while any minigame is being played (in the " +
+                 "same units as Furbrain Needs → Play → Max, 100 by default). 1.5 = a 30-second game adds 45.")]
+        float m_PlayPerSecond = 1.5f;
+
+        // Plays the complete sound. It lives here (on the always-active FurBrains Game object), not on the game,
+        // because the game object is destroyed the moment it finishes, which would cut its sounds off.
+        AudioSource m_Audio;
+
         MinigameDefinition m_Definition;
         Minigame m_Current;
 
@@ -45,6 +64,16 @@ namespace FurBrains
         {
             if (m_Summoner == null) m_Summoner = FindAnyObjectByType<FurBrainSummoner>();
             if (m_Wallet == null) m_Wallet = FindAnyObjectByType<PlayerWallet>();
+            if (m_Needs == null) m_Needs = FindAnyObjectByType<FurBrainNeeds>();
+
+            // FurBrains Game may not have an AudioSource yet: add one if it's missing.
+            m_Audio = GetComponent<AudioSource>();
+            if (m_Audio == null)
+            {
+                m_Audio = gameObject.AddComponent<AudioSource>();
+                m_Audio.playOnAwake = false;
+                m_Audio.spatialBlend = 0f; // 2D: the same volume wherever the phone is
+            }
         }
 
         /// <summary>Starts a minigame. Returns false if it can't start right now.</summary>
@@ -84,6 +113,12 @@ namespace FurBrains
             // If the FurBrain disappears mid-game (shouldn't happen: the delete button is hidden), stop cleanly.
             if (m_Current != null && (m_Summoner == null || !m_Summoner.hasSummoned))
                 Quit();
+
+            // Playing together fills the Play need, steadily, for as long as a game runs (whatever the result:
+            // no punishing fail states). × Time.deltaTime turns "per second" into "this frame's share", so the rate
+            // is the same at any frame rate. Not saved every frame: saved once when the game ends.
+            if (isPlaying && m_Needs != null)
+                m_Needs.AddPlay(m_PlayPerSecond * Time.deltaTime, save: false);
         }
 
         void OnFinished(MinigameResult result)
@@ -97,6 +132,12 @@ namespace FurBrains
             var coins = definition.CoinsFor(result);
             if (m_Wallet != null)
                 m_Wallet.Add(coins);
+
+            // Play went up during the game (see Update); save it now that the game is over.
+            if (m_Needs != null)
+                m_Needs.Save();
+
+            PlayCompleteSound();
 
             // Ziara reacts: a celebration for a good result, a friendly gesture otherwise (never a sad punishment).
             if (m_Summoner != null && m_Summoner.hasSummoned &&
@@ -112,6 +153,22 @@ namespace FurBrains
             // after calling Finish is safe.
             Destroy(game.gameObject);
             ended?.Invoke(definition, result, coins);
+        }
+
+        void PlayCompleteSound()
+        {
+            // "is" checks the real type and gives a typed variable if it matches (like a C++ dynamic_cast + null check).
+            if (m_CompleteSound is AudioClip clip)
+            {
+                m_Audio.PlayOneShot(clip);
+            }
+            else if (m_CompleteSound != null)
+            {
+                // A container (PlayOneShot only accepts clips): set it as the source's resource and Play. This
+                // AudioSource only plays the complete sound, so restarting it never cuts anything else off.
+                m_Audio.resource = m_CompleteSound;
+                m_Audio.Play();
+            }
         }
 
         // Testing aids: right-click the component header in the Inspector during a game.

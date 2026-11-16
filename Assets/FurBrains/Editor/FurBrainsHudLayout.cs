@@ -25,6 +25,17 @@ namespace FurBrains.EditorTools
         // Height of the bottom row's centres above the screen's bottom edge, in canvas pixels.
         const float k_BottomRowY = 150f;
 
+        // Name of the meter object added inside the food and minigame buttons.
+        const string k_NeedFillName = "Need Fill";
+
+        // The Options menu's added row and its icon.
+        const string k_MuteRowName = "Mute Sounds Toggle";
+        const string k_SoundIconPath = "Assets/FurBrains/UI/Icons/Icon_Sound.png";
+
+        // The ring added around each round bottom button.
+        const string k_BorderName = "Border";
+        const string k_RingSpritePath = "Assets/FurBrains/UI/Icons/Button_Ring.png";
+
         // Size of the menus' round X (close) buttons, in canvas pixels.
         const float k_CloseButtonSize = 90f;
 
@@ -39,7 +50,7 @@ namespace FurBrains.EditorTools
         /// <summary>Moves the HUD objects that exist in the open scene (missing ones are skipped).</summary>
         public static void Apply()
         {
-            // Coins and hunger: top-left corner.
+            // Coins: top-left corner.
             Pin("Pet HUD", new Vector2(0f, 1f), new Vector2(30f, -30f), pivot: new Vector2(0f, 1f));
 
             // The minigame exit button moves to the top-right so it doesn't cover the coins. (The Options button
@@ -78,6 +89,185 @@ namespace FurBrains.EditorTools
             Pin("Options Button", new Vector2(1f, 1f), new Vector2(-100f, -100f));
 
             StyleCloseButtons();
+
+            // Need meters inside the activity buttons: hunger in the food button, play in the minigame button.
+            AddNeedMeter(food, NeedMeter.NeedType.Hunger);
+            AddNeedMeter(FindInScene("Minigame Button"), NeedMeter.NeedType.Play);
+            RemoveOldHungerBar();
+
+            // A white ring around each round bottom button (after the meters, so it can sit on top of the fill).
+            AddBorder(food);
+            AddBorder(FindInScene("Minigame Button"));
+            AddBorder(FindInScene("Delete Button"));
+
+            SetUpOptionsMenu();
+        }
+
+        /// <summary>
+        /// Trims the template's Options (⋯) menu to what this app needs: "Visualize Surfaces" plus a new
+        /// "Mute Sounds" row. The other template rows are switched off (not deleted), so they can be brought back by
+        /// ticking them in the Inspector.
+        /// </summary>
+        /// <remarks>
+        /// The menu ("Options Modal") is a column of 64-pixel rows anchored to its top. The mute row is a copy of the
+        /// Visualize Surfaces row, so it looks the same; its copied click hookup (which toggled the planes) is
+        /// replaced by a MuteSoundsToggle that adds its own listeners at runtime.
+        /// </remarks>
+        static void SetUpOptionsMenu()
+        {
+            var modal = FindInScene("Options Modal");
+            if (modal == null)
+                return;
+            var modalTransform = modal.transform;
+
+            // Hide the rows a children's app doesn't need (the AR debug tools and the template's hints/clear-all).
+            foreach (var rowName in new[] { "Hints Button", "Remove Objects Button", "Debug Menu Toggle" })
+            {
+                var row = modalTransform.Find(rowName);
+                if (row != null && row.gameObject.activeSelf)
+                {
+                    Undo.RecordObject(row.gameObject, "Set Up Options Menu");
+                    row.gameObject.SetActive(false);
+                }
+            }
+
+            var planeRow = modalTransform.Find("Debug Plane Toggle") as RectTransform;
+            if (planeRow == null)
+                return;
+            Undo.RecordObject(planeRow, "Set Up Options Menu");
+            planeRow.anchoredPosition = new Vector2(planeRow.anchoredPosition.x, 0f); // first row
+            var rowHeight = planeRow.rect.height;
+
+            var muteRow = modalTransform.Find(k_MuteRowName) as RectTransform;
+            if (muteRow == null)
+            {
+                // Object.Instantiate copies a scene object with all its children and components (like the Editor's
+                // Duplicate). Register it with Undo so Ctrl+Z removes it again.
+                muteRow = (RectTransform)Object.Instantiate(planeRow.gameObject, modalTransform).transform;
+                Undo.RegisterCreatedObjectUndo(muteRow.gameObject, "Set Up Options Menu");
+                muteRow.name = k_MuteRowName;
+
+                // Drop the copied click hookup (it would toggle the surfaces), the same trick IconButtonMenu uses.
+                var button = muteRow.GetComponent<Button>();
+                if (button != null)
+                    button.onClick = new Button.ButtonClickedEvent();
+
+                var label = muteRow.GetComponentInChildren<TMPro.TMP_Text>(true);
+                if (label != null)
+                    label.text = "Mute Sounds";
+
+                var icon = muteRow.Find("Icon");
+                var sound = AssetDatabase.LoadAssetAtPath<Sprite>(k_SoundIconPath);
+                if (icon != null && sound != null && icon.TryGetComponent<Image>(out var iconImage))
+                {
+                    iconImage.sprite = sound;
+                    iconImage.preserveAspect = true;
+                }
+
+                var toggle = muteRow.gameObject.AddComponent<MuteSoundsToggle>();
+                SetReference(toggle, "m_Button", button);
+                SetReference(toggle, "m_Switch", muteRow.GetComponentInChildren<Slider>(true));
+            }
+            Undo.RecordObject(muteRow, "Set Up Options Menu");
+            muteRow.anchoredPosition = new Vector2(muteRow.anchoredPosition.x, -rowHeight); // second row
+
+            // Shrink the panel to the two rows that are left.
+            var modalRect = (RectTransform)modalTransform;
+            Undo.RecordObject(modalRect, "Set Up Options Menu");
+            // The pivot is the point that stays put when the size changes. The template pivots the panel at its
+            // vertical middle, which would pull its top edge down; move the pivot to the top edge first (keeping that
+            // edge where it is), so the panel shrinks up toward the ⋯ button.
+            if (!Mathf.Approximately(modalRect.pivot.y, 1f))
+            {
+                var top = modalRect.anchoredPosition.y + (1f - modalRect.pivot.y) * modalRect.rect.height;
+                modalRect.pivot = new Vector2(modalRect.pivot.x, 1f);
+                modalRect.anchoredPosition = new Vector2(modalRect.anchoredPosition.x, top);
+            }
+            modalRect.sizeDelta = new Vector2(modalRect.sizeDelta.x, rowHeight * 2f);
+        }
+
+        /// <summary>
+        /// Adds a "Border" child to a round button: the ring sprite (UI/Icons/Button_Ring.png) stretched over the
+        /// button's edge. It's placed just above the need fill (if any) and below the icon, so the ring frames the
+        /// fill and the icon stays on top. Skipped if the button already has one; recolour it in the Inspector.
+        /// </summary>
+        static void AddBorder(GameObject button)
+        {
+            if (button == null || button.transform.Find(k_BorderName) != null)
+                return;
+            var ring = AssetDatabase.LoadAssetAtPath<Sprite>(k_RingSpritePath);
+            if (ring == null)
+            {
+                Debug.LogWarning($"[FurBrains] {k_RingSpritePath} not found (or not imported as a Sprite); no button borders added.");
+                return;
+            }
+
+            var border = CreateUiObject(k_BorderName, button.transform);
+            var rect = (RectTransform)border.transform;
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.offsetMin = rect.offsetMax = Vector2.zero;
+
+            // UI draws children in order: background (the button itself) → need fill → border → icon and label.
+            var fill = button.transform.Find(k_NeedFillName);
+            border.transform.SetSiblingIndex(fill != null ? fill.GetSiblingIndex() + 1 : 0);
+
+            var image = border.AddComponent<Image>();
+            image.sprite = ring;
+            image.preserveAspect = true;
+            image.color = new Color(1f, 1f, 1f, 0.95f);
+            image.raycastTarget = false; // taps go through to the button
+        }
+
+        /// <summary>
+        /// Adds a "Need Fill" child to a round button: an Image in the button's own shape that fills from the bottom
+        /// (Filled, Vertical, Bottom), drawn behind the icon, with a NeedMeter setting its fill. Skipped if the button
+        /// already has one, so re-running keeps any restyling done in the Inspector.
+        /// </summary>
+        static void AddNeedMeter(GameObject button, NeedMeter.NeedType need)
+        {
+            if (button == null || button.transform.Find(k_NeedFillName) != null)
+                return;
+
+            var fill = CreateUiObject(k_NeedFillName, button.transform);
+            var rect = (RectTransform)fill.transform;
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.offsetMin = rect.offsetMax = Vector2.zero;
+            // First child = drawn first, i.e. behind the icon and label (UI draws children in order).
+            fill.transform.SetAsFirstSibling();
+
+            var image = fill.AddComponent<Image>();
+            var buttonImage = button.GetComponent<Image>();
+            image.sprite = buttonImage != null ? buttonImage.sprite : AssetDatabase.GetBuiltinExtraResource<Sprite>("UI/Skin/Knob.psd");
+            image.type = Image.Type.Filled;
+            image.fillMethod = Image.FillMethod.Vertical;
+            image.fillOrigin = (int)Image.OriginVertical.Bottom;
+            image.fillAmount = 0.8f;
+            image.preserveAspect = true;
+            image.raycastTarget = false; // taps go through to the button itself
+
+            var meter = fill.AddComponent<NeedMeter>();
+            meter.need = need;
+            SetReference(meter, "m_Fill", image);
+        }
+
+        /// <summary>
+        /// Removes the old top-left hunger bar (hunger is shown in the food button now). The coins stay.
+        /// </summary>
+        static void RemoveOldHungerBar()
+        {
+            var bar = FindInScene("Hunger Bar");
+            if (bar == null)
+                return;
+            var hud = bar.GetComponentInParent<PetHud>(true);
+            if (hud != null)
+            {
+                SetReference(hud, "m_HungerFill", null);
+                SetReference(hud, "m_HungerBar", null);
+            }
+            Undo.DestroyObjectImmediate(bar);
+            Debug.Log("[FurBrains] Removed the old hunger bar; hunger now shows in the food button.");
         }
 
         /// <summary>

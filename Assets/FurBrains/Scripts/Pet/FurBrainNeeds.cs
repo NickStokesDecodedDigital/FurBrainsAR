@@ -4,88 +4,152 @@ using UnityEngine;
 namespace FurBrains
 {
     /// <summary>
-    /// The FurBrain's needs. For now just hunger: a fullness value that slowly drops over time and goes back up when
-    /// the FurBrain is fed. 0 = very hungry, <see cref="maxHunger"/> = full.
+    /// The FurBrain's needs: <b>Hunger</b> (filled by feeding) and <b>Play</b> (filled by playing minigames). Both
+    /// slowly drop over time. 0 = very hungry / very bored, max = full. <b>Happiness</b> is the average of the two.
     /// </summary>
     /// <remarks>
     /// This lives in the scene, not on the spawned FurBrain, because it belongs to the player's pet rather than to one
-    /// summoned instance: deleting and re-summoning the FurBrain keeps its hunger. Saved on the device like the coins.
+    /// summoned instance: deleting and re-summoning the FurBrain keeps its needs. Saved on the device like the coins.
     ///
-    /// Hunger never causes anything bad (children's app: no punishing fail states). Later, low hunger can make the
-    /// FurBrain look sad or ask for food.
+    /// Needs never cause anything bad (children's app: no punishing fail states). Low happiness only changes the
+    /// FurBrain's face (FurBrainMood), and the meters inside the food and play buttons (NeedMeter) show each need.
     /// </remarks>
     public class FurBrainNeeds : MonoBehaviour
     {
+        /// <summary>
+        /// One need: a value between 0 and <see cref="max"/> that drains over time and can be topped up.
+        /// </summary>
+        /// <remarks>
+        /// A small class used twice (hunger and play) instead of copy-pasting every field and function for each.
+        /// It's a class (a reference type in C#, so FurBrainNeeds changes its one copy in place), like a C++ class
+        /// with member functions. <c>[Serializable]</c> lets Unity save its public fields and show them in the
+        /// Inspector as a foldout inside FurBrainNeeds.
+        /// </remarks>
+        [Serializable]
+        public class Need
+        {
+            [Min(1)] // Min prevents the user from entering a value below x in the inspector
+            [Tooltip("Value when completely full.")]
+            public float max = 100f;
+
+            [Min(0)]
+            [Tooltip("Value a brand-new pet starts with. Only used when nothing is saved yet: " +
+                     "use Tools → FurBrains → Clear Saved Progress to start fresh.")]
+            public float starting = 80f;
+
+            [Min(0)]
+            [Tooltip("How much is lost per minute of play. 0.5 = full to empty in about 3 hours 20 minutes.")]
+            public float lossPerMinute = 0.5f;
+
+            /// <summary>Current value (not saved in the scene: it's runtime state, loaded from the device).</summary>
+            [NonSerialized] public float value;
+
+            /// <summary>The value as 0..1, handy for meters.</summary>
+            public float normalized => value / max;
+
+            /// <summary>Loads the saved value, or starts at <see cref="starting"/>.</summary>
+            public void Load(string key, bool useSave)
+            {
+                var start = Mathf.Min(starting, max);
+                value = useSave ? PlayerPrefs.GetFloat(key, start) : start;
+            }
+
+            /// <summary>Sets the value, kept within 0..max.</summary>
+            public void Set(float newValue) => value = Mathf.Clamp(newValue, 0f, max);
+
+            /// <summary>The slow drop over time.</summary>
+            public void Drain(float deltaTime)
+            {
+                if (value > 0f && lossPerMinute > 0f)
+                    Set(value - lossPerMinute / 60f * deltaTime);
+            }
+
+            public void Save(string key) => PlayerPrefs.SetFloat(key, value);
+        }
+
         /// <summary>PlayerPrefs key the hunger is saved under.</summary>
         public const string SaveKey = "FurBrains.Hunger";
-        const string k_SaveKey = SaveKey;
 
-        [SerializeField, Min(1)]
-        [Tooltip("Hunger value when completely full.")]
-        float m_MaxHunger = 100f;
-
-        [SerializeField, Min(0)]
-        [Tooltip("Hunger a brand-new pet starts with. Only used when nothing is saved yet: " +
-                 "use Tools → FurBrains → Clear Saved Progress to start fresh.")]
-        float m_StartingHunger = 80f;
-
-        [SerializeField, Min(0)]
-        [Tooltip("How much hunger is lost per minute of play. 0.5 = full to empty in about 3 hours 20 minutes.")]
-        float m_HungerLossPerMinute = 0.5f;
+        /// <summary>PlayerPrefs key the play need is saved under.</summary>
+        public const string PlaySaveKey = "FurBrains.Play";
 
         [SerializeField]
-        [Tooltip("Remember hunger between app launches.")]
+        [Tooltip("Hunger: filled by feeding.")]
+        Need m_Hunger = new();
+
+        [SerializeField]
+        [Tooltip("Play: filled by playing minigames.")]
+        Need m_Play = new();
+
+        [SerializeField]
+        [Tooltip("Remember the needs between app launches.")]
         bool m_SaveProgress = true;
 
-        float m_Hunger;
-
-        /// <summary>Invoked with the new hunger value whenever it changes.</summary>
-        public event Action<float> hungerChanged;
-
         /// <summary>Current hunger (0 = very hungry, maxHunger = full).</summary>
-        public float hunger => m_Hunger;
+        public float hunger => m_Hunger.value;
 
         /// <summary>Hunger value when completely full.</summary>
-        public float maxHunger => m_MaxHunger;
+        public float maxHunger => m_Hunger.max;
 
-        /// <summary>Hunger as 0..1, handy for UI bars.</summary>
-        public float hungerNormalized => m_Hunger / m_MaxHunger;
+        /// <summary>Hunger as 0..1.</summary>
+        public float hungerNormalized => m_Hunger.normalized;
 
         /// <summary>True when the FurBrain can't eat any more.</summary>
-        public bool isFull => m_Hunger >= m_MaxHunger - 0.01f;
+        public bool isFull => m_Hunger.value >= m_Hunger.max - 0.01f;
+
+        /// <summary>Current play value (0 = very bored, maxPlay = fully played with).</summary>
+        public float play => m_Play.value;
+
+        /// <summary>Play value when completely full.</summary>
+        public float maxPlay => m_Play.max;
+
+        /// <summary>Play as 0..1.</summary>
+        public float playNormalized => m_Play.normalized;
+
+        /// <summary>How happy the FurBrain is, 0..1: the average of hunger and play.</summary>
+        public float happinessNormalized => (hungerNormalized + playNormalized) * 0.5f;
 
         void Awake()
         {
-            var start = Mathf.Min(m_StartingHunger, m_MaxHunger);
-            m_Hunger = m_SaveProgress ? PlayerPrefs.GetFloat(k_SaveKey, start) : start;
+            m_Hunger.Load(SaveKey, m_SaveProgress);
+            m_Play.Load(PlaySaveKey, m_SaveProgress);
         }
 
         void Update()
         {
-            if (m_Hunger > 0f && m_HungerLossPerMinute > 0f)
-                SetHunger(m_Hunger - m_HungerLossPerMinute / 60f * Time.deltaTime, save: false);
+            m_Hunger.Drain(Time.deltaTime);
+            m_Play.Drain(Time.deltaTime);
         }
 
         /// <summary>Restores hunger, up to full.</summary>
         public void Feed(float amount)
         {
-            if (amount > 0f)
-                SetHunger(m_Hunger + amount, save: true);
+            if (amount <= 0f)
+                return;
+            m_Hunger.Set(m_Hunger.value + amount);
+            Save();
         }
 
-        void SetHunger(float value, bool save)
+        /// <summary>Restores play, up to full (MinigameRunner calls it every frame while a minigame is played).</summary>
+        /// <param name="amount">How much to add.</param>
+        /// <param name="save">Save to the device straight away. Pass false when adding a little every frame (saving
+        /// every frame would be slow), and call <see cref="Save"/> when done.</param>
+        public void AddPlay(float amount, bool save = true)
         {
-            m_Hunger = Mathf.Clamp(value, 0f, m_MaxHunger);
-            hungerChanged?.Invoke(m_Hunger);
+            if (amount <= 0f)
+                return;
+            m_Play.Set(m_Play.value + amount);
             if (save)
                 Save();
         }
 
-        void Save()
+        /// <summary>Writes both needs to the device.</summary>
+        public void Save()
         {
             if (!m_SaveProgress)
                 return;
-            PlayerPrefs.SetFloat(k_SaveKey, m_Hunger);
+            m_Hunger.Save(SaveKey);
+            m_Play.Save(PlaySaveKey);
             PlayerPrefs.Save();
         }
 
@@ -99,12 +163,28 @@ namespace FurBrains
 
         void OnDisable() => Save();
 
-        /// <summary>Testing aid: right-click the component header in the Inspector → Reset Hunger.</summary>
-        [ContextMenu("Reset Hunger")]
-        void ResetHunger() => SetHunger(Mathf.Min(m_StartingHunger, m_MaxHunger), save: true);
+        // Testing aids: right-click the component header in the Inspector (in Play mode).
 
-        /// <summary>Testing aid: make the FurBrain very hungry right away.</summary>
+        [ContextMenu("Reset Needs")]
+        void ResetNeeds()
+        {
+            m_Hunger.Set(Mathf.Min(m_Hunger.starting, m_Hunger.max));
+            m_Play.Set(Mathf.Min(m_Play.starting, m_Play.max));
+            Save();
+        }
+
         [ContextMenu("Make Hungry")]
-        void MakeHungry() => SetHunger(m_MaxHunger * 0.1f, save: true);
+        void MakeHungry()
+        {
+            m_Hunger.Set(m_Hunger.max * 0.1f);
+            Save();
+        }
+
+        [ContextMenu("Make Bored")]
+        void MakeBored()
+        {
+            m_Play.Set(m_Play.max * 0.1f);
+            Save();
+        }
     }
 }

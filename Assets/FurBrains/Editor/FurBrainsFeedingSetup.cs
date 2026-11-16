@@ -148,14 +148,14 @@ namespace FurBrains.EditorTools
             var hudRect = (RectTransform)hud.transform;
             hudRect.anchorMin = hudRect.anchorMax = hudRect.pivot = new Vector2(0f, 1f);
             hudRect.anchoredPosition = new Vector2(30f, -30f);
-            hudRect.sizeDelta = new Vector2(230f, 100f);
+            hudRect.sizeDelta = new Vector2(230f, 60f);
             var backdrop = hud.AddComponent<Image>();
             backdrop.sprite = panelSprite;
             backdrop.type = Image.Type.Sliced;
             backdrop.color = new Color(0f, 0f, 0f, 0.35f); // keeps the text readable over the camera image
             backdrop.raycastTarget = false;
 
-            // Row 1: coin icon + count.
+            // Coin icon + count.
             var coin = CreateUiObject("Coin Icon", hud.transform);
             Place(coin, new Vector2(0f, 1f), new Vector2(15f, -10f), new Vector2(40f, 40f));
             var coinImage = coin.AddComponent<Image>();
@@ -173,29 +173,10 @@ namespace FurBrains.EditorTools
             text.color = Color.white;
             text.raycastTarget = false;
 
-            // Row 2: hunger bar (dark background with a coloured fill that shrinks toward the left).
-            var bar = CreateUiObject("Hunger Bar", hud.transform);
-            Place(bar, new Vector2(0f, 1f), new Vector2(15f, -62f), new Vector2(200f, 26f));
-            var barImage = bar.AddComponent<Image>();
-            barImage.sprite = panelSprite;
-            barImage.type = Image.Type.Sliced;
-            barImage.color = new Color(0f, 0f, 0f, 0.5f);
-            barImage.raycastTarget = false;
-
-            var fill = CreateUiObject("Fill", bar.transform);
-            var fillRect = (RectTransform)fill.transform;
-            fillRect.anchorMin = Vector2.zero;
-            fillRect.anchorMax = Vector2.one;
-            fillRect.offsetMin = new Vector2(3f, 3f);
-            fillRect.offsetMax = new Vector2(-3f, -3f);
-            // PetHud sets this image's width from hunger (via its right anchor), so a plain image is enough.
-            var fillImage = fill.AddComponent<Image>();
-            fillImage.color = new Color(0.45f, 0.85f, 0.4f);
-            fillImage.raycastTarget = false;
+            // Hunger and play are shown inside the food and minigame buttons (NeedMeter, added by Arrange HUD).
 
             var hudComponent = Undo.AddComponent<PetHud>(hud);
             SetReference(hudComponent, "m_CoinsText", text);
-            SetReference(hudComponent, "m_HungerFill", fillImage);
             return hud;
         }
 

@@ -253,6 +253,8 @@ namespace FurBrains.EditorTools
                 KeepSettings(previous, lookAt);
                 KeepSettings(previous, pet);
                 pet.animator = animator; // always this build's Animator, never the old prefab's
+                // The crumbs particle system is a child of the prefab, so a fresh build makes a fresh one.
+                pet.eatBurst = FurBrainsEatEffect.CreateEatBurst(root.transform, FurBrainsEatEffect.LoadOrCreateMaterial());
 
                 var prefab = PrefabUtility.SaveAsPrefabAsset(root, k_PetPrefabPath, out var ok);
                 if (ok)

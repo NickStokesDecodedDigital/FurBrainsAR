@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Audio;
 
 namespace FurBrains
 {
@@ -87,6 +88,48 @@ namespace FurBrains
         [Tooltip("Where bubbles come from, as a fraction of the FurBrain's height.")]
         float m_SpawnHeight = 0.7f;
 
+        [SerializeField]
+        [Tooltip("Blend shapes the FurBrain holds for the whole game (\"O\" = a round mouth, as if blowing bubbles). " +
+                 "Empty = keep its normal mood face.")]
+        string[] m_PetExpression = { "O" };
+
+        FurBrainMood m_PetMood; // the FurBrain's face owner, so the held face can be released when the game ends
+
+        [Header("Sound")]
+        [SerializeField]
+        [Tooltip("Played when the player pops a bubble. An Audio Clip, or an Audio Random Container for variety " +
+                 "(random clip, pitch and volume each time).")]
+        AudioResource m_PopSound; // AudioResource is the base class of both AudioClip and AudioRandomContainer
+
+        [SerializeField]
+        [Tooltip("Played instead of Pop Sound when a golden bubble is popped (e.g. a sparkly chime). " +
+                 "Empty = golden bubbles use Pop Sound too.")]
+        AudioResource m_GoldenPopSound;
+
+        AudioSource m_Audio;
+
+        [Header("Pop effect")]
+        [SerializeField, Min(0)]
+        [Tooltip("Droplets that fly out when the player pops a bubble (half as many when one pops by itself).")]
+        int m_PopDroplets = 10;
+
+
+        // The particle systems' Start Size and Shape → Radius are set in their Inspectors for an average-sized
+        // bubble; Burst scales them for bigger or smaller bubbles. These hold the Inspector values, read once at start.
+        ParticleSystem.MinMaxCurve m_PopSize, m_GoldSize;
+        float m_PopRadius, m_GoldRadius;
+        float m_AverageBubbleRadius;
+
+        [SerializeField]
+        [Tooltip("Particle system (a child of this prefab) that sprays droplets in the bubble material. " +
+                 "Created by Tools → FurBrains → Add Bubble Pop Effects.")]
+        ParticleSystem m_PopBurst;
+
+        [SerializeField]
+        [Tooltip("Particle system (a child of this prefab) that sprays gold droplets for golden bubbles. " +
+                 "If empty, golden bubbles use Pop Burst.")]
+        ParticleSystem m_GoldBurst;
+
         // List<T> is C#'s std::vector<T>. Bubbles are classes, so the list holds references (like Bubble*).
         readonly List<Bubble> m_Bubbles = new();
         float m_StartTime;
@@ -96,6 +139,12 @@ namespace FurBrains
 
         protected override void OnBegin()
         {
+            // The prefab may not have an AudioSource yet: add one if it's missing.
+            m_Audio = GetComponent<AudioSource>();
+            if (m_Audio == null)
+                m_Audio = gameObject.AddComponent<AudioSource>();
+            m_Audio.playOnAwake = false;
+
             currentScore = 0;
             m_StartTime = Time.time;
             m_NextSpawnTime = Time.time + 0.5f; // a moment to get ready
@@ -103,6 +152,32 @@ namespace FurBrains
             timeRemainingNormalized = 1f;
             if (m_BubbleTemplate != null)
                 m_BubbleTemplate.SetActive(false);
+
+            // Remember the sizes set in the particle systems' Inspectors (Burst scales them, rather than replacing them).
+            m_AverageBubbleRadius = (m_SizeRange.x + m_SizeRange.y) * 0.25f; // average diameter ÷ 2
+            if (m_PopBurst != null)
+            {
+                m_PopSize = m_PopBurst.main.startSize;
+                m_PopRadius = m_PopBurst.shape.radius;
+            }
+            if (m_GoldBurst != null)
+            {
+                m_GoldSize = m_GoldBurst.main.startSize;
+                m_GoldRadius = m_GoldBurst.shape.radius;
+            }
+
+            // The FurBrain blows the bubbles: hold an "O" mouth for the whole game. Faces always go through
+            // FurBrainMood (the face's single owner), never FurBrainFace directly, so moods and reactions don't clash.
+            if (context.pet != null && m_PetExpression.Length > 0 && context.pet.TryGetComponent(out m_PetMood))
+                m_PetMood.Hold(m_PetExpression);
+        }
+
+        // The runner destroys the game when it ends (finished or quit), so this is the one place to undo the face.
+        void OnDestroy()
+        {
+            // Unity's == null is also true for a FurBrain destroyed in the meantime, so this is safe either way.
+            if (m_PetMood != null)
+                m_PetMood.ReleaseHold();
         }
 
         void Update()
@@ -176,10 +251,17 @@ namespace FurBrains
                 var wobble = cam.right * (Mathf.Sin((age + bubble.wobbleOffset) * 3f) * 0.03f);
                 bubble.transform.position += (bubble.velocity + wobble) * Time.deltaTime;
 
-                // Floated away: too old, or got past the player.
+                // Floated away: too old (pops by itself, with a smaller burst), or got past the player (just goes).
                 var behind = Vector3.Dot(bubble.transform.position - cam.position, cam.forward) < 0f;
-                if (age > m_Lifetime || behind)
+                if (age > m_Lifetime && !behind)
+                {
+                    Burst(bubble, m_PopDroplets / 2);
                     RemoveBubble(i);
+                }
+                else if (behind)
+                {
+                    RemoveBubble(i);
+                }
             }
         }
 
@@ -210,9 +292,63 @@ namespace FurBrains
 
             var popped = m_Bubbles[best];
             currentScore += popped.golden ? m_GoldenPoints : 1;
-            if (popped.golden && context.pet != null)
-                context.pet.OnTapped(); // the FurBrain is excited about a golden one
+            // Golden bubbles use their own sound if one is set. (Not "m_GoldenPopSound ?? m_PopSound": C#'s ?? skips
+            // Unity's own null check, and in the Editor an empty object field can hold a placeholder that ?? treats
+            // as set. Unity's == / != handles it correctly.)
+            var sound = popped.golden && m_GoldenPopSound != null ? m_GoldenPopSound : m_PopSound;
+            PlayPop(sound);
+            Burst(popped, m_PopDroplets);
             RemoveBubble(best);
+        }
+
+        /// <summary>Sprays droplets from a bubble's position, sized to the bubble.</summary>
+        void Burst(Bubble bubble, int count)
+        {
+            // The particle systems are saved in the prefab (made by the editor tool), so this only positions,
+            // sizes and fires them. Golden bubbles fall back to the normal burst if there's no gold one.
+            var useGold = bubble.golden && m_GoldBurst != null;
+            var ps = useGold ? m_GoldBurst : m_PopBurst;
+            if (ps == null || count <= 0)
+                return;
+            ps.transform.position = bubble.transform.position;
+
+            // The Inspector values are for an average bubble: scale them by how big this bubble is compared to that
+            // (a bubble 20% bigger than average gets droplets and a spray area 20% bigger).
+            var scale = m_AverageBubbleRadius > 0f ? bubble.radius / m_AverageBubbleRadius : 1f;
+            var main = ps.main;
+            main.startSize = Scaled(useGold ? m_GoldSize : m_PopSize, scale);
+            var shape = ps.shape;
+            shape.radius = (useGold ? m_GoldRadius : m_PopRadius) * scale;
+            ps.Emit(count); // creates the droplets immediately, using the settings above
+        }
+
+        /// <summary>
+        /// A copy of a particle value scaled by <paramref name="factor"/>. MinMaxCurve can be a single number, a random
+        /// range or a curve, so all three parts are scaled. (It's a struct, so this changes a copy, not the original.)
+        /// </summary>
+        static ParticleSystem.MinMaxCurve Scaled(ParticleSystem.MinMaxCurve value, float factor)
+        {
+            value.constantMin *= factor;     // lower end of a random range
+            value.constantMax *= factor;     // a single number, or the upper end of a random range
+            value.curveMultiplier *= factor; // curve modes
+            return value;
+        }
+
+        void PlayPop(AudioResource sound)
+        {
+            // "is" checks the real type and gives a typed variable if it matches (like a C++ dynamic_cast + null check).
+            if (sound is AudioClip clip)
+            {
+                m_Audio.PlayOneShot(clip); // quick pops overlap
+            }
+            else if (sound != null)
+            {
+                // A container (PlayOneShot only accepts clips): set it as the source's resource and Play; it picks the
+                // clip, pitch and volume itself. Play() restarts the source, so a very quick second pop cuts off the
+                // tail of the first, which is barely noticeable with short pop sounds.
+                m_Audio.resource = sound;
+                m_Audio.Play();
+            }
         }
 
         void RemoveBubble(int index)

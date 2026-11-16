@@ -10,9 +10,10 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: a2e9aa130d28f9848b2ee34aff1368be, type: 3}
-  m_Name: Sandwich
+  m_Name: Burger
   m_EditorClassIdentifier: Assembly-CSharp::FurBrains.FoodItem
   m_DisplayName: Burger
-  m_Icon: {fileID: 0}
+  m_Icon: {fileID: 21300000, guid: dac3210e2ebac6744acba138aa71c220, type: 3}
   m_Price: 20
   m_HungerRestored: 45
+  m_CrumbColor: {r: 0.78590125, g: 0.59905285, b: 0.30230612, a: 1}

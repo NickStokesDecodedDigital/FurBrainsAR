@@ -40,6 +40,13 @@ namespace FurBrains
         [Tooltip("Close the menu after buying a food. Off: the menu stays open so several foods can be bought in a row.")]
         bool m_CloseAfterBuying;
 
+        [SerializeField]
+        [Tooltip("Blend shapes the FurBrain holds while the food menu is open (\"O\" = an eager open mouth). " +
+                 "Empty = keep its normal mood face.")]
+        string[] m_PetExpression = { "O" };
+
+        FurBrainMood m_HeldMood; // the FurBrain whose face this menu is currently holding (null = none)
+
         /// <summary>Foods on offer.</summary>
         public List<FoodItem> foods => m_Foods;
 
@@ -57,8 +64,11 @@ namespace FurBrains
             {
                 // Lambdas capture variables, but foreach gives each iteration its own 'food', so each button
                 // buys its own food.
-                AddButton($"Food ({food.name})", food.icon, food.displayName, food.price.ToString(),
+                var button = AddButton($"Food ({food.name})", food.icon, food.displayName, food.price.ToString(),
                     () => Buy(food), () => CanBuy(food));
+
+                // Drag-to-feed: the same Buy and CanBuy as the tap, so both ways behave identically.
+                button.gameObject.AddComponent<DragToPet>().Setup(food.icon, () => Buy(food), () => CanBuy(food), m_Summoner);
             }
         }
 
@@ -76,10 +86,47 @@ namespace FurBrains
             m_Needs.Feed(food.hungerRestored);
 
             if (m_Summoner.summoned.TryGetComponent<FurBrainPet>(out var pet))
-                pet.Eat();
+                pet.Eat(food.crumbColor); // crumbs in the food's colour
 
             if (m_CloseAfterBuying && m_MenuManager != null)
                 m_MenuManager.HideMenu();
+        }
+
+        // "override" replaces the base class's Update (it's virtual there); base.Update() still runs the base version
+        // first (greying out buttons), like calling Base::Update() from a C++ override.
+        protected override void Update()
+        {
+            base.Update();
+            UpdatePetFace();
+        }
+
+        /// <summary>
+        /// While the menu is open, the FurBrain holds an eager "O" face (through FurBrainMood, the face's owner);
+        /// when it closes, or the FurBrain is deleted or re-summoned, the hold moves or is released.
+        /// </summary>
+        void UpdatePetFace()
+        {
+            FurBrainMood wanted = null;
+            var menuOpen = m_MenuManager != null && m_MenuManager.isFoodMenuShown;
+            if (menuOpen && m_PetExpression.Length > 0 && m_Summoner != null && m_Summoner.hasSummoned)
+                m_Summoner.summoned.TryGetComponent(out wanted);
+
+            if (wanted == m_HeldMood)
+                return; // nothing changed
+
+            if (m_HeldMood != null)
+                m_HeldMood.ReleaseHold();
+            m_HeldMood = wanted;
+            if (m_HeldMood != null)
+                m_HeldMood.Hold(m_PetExpression);
+        }
+
+        // If this menu is switched off (e.g. a minigame hides it), don't leave the FurBrain stuck with the face.
+        void OnDisable()
+        {
+            if (m_HeldMood != null)
+                m_HeldMood.ReleaseHold();
+            m_HeldMood = null;
         }
     }
 }

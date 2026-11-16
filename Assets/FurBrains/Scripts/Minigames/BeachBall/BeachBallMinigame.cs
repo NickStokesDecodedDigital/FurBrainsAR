@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Audio;
 
 namespace FurBrains
 {
@@ -25,8 +26,9 @@ namespace FurBrains
         Transform m_Ball;
 
         [SerializeField]
-        [Tooltip("Played when the ball is hit, by the player or the FurBrain.")]
-        AudioClip m_BumpSound;
+        [Tooltip("Played when the ball is hit, by the player or the FurBrain. An Audio Clip, or an Audio Random " +
+                 "Container for variety (random clip, pitch and volume each time).")]
+        AudioResource m_BumpSound; // AudioResource is the base class of both AudioClip and AudioRandomContainer
 
         AudioSource m_Audio;
 
@@ -135,8 +137,19 @@ namespace FurBrains
 
         void PlayBump()
         {
-            if (m_BumpSound != null)
-                m_Audio.PlayOneShot(m_BumpSound);
+            // "is" checks the real type and gives a typed variable if it matches (like a C++ dynamic_cast + null check).
+            if (m_BumpSound is AudioClip clip)
+            {
+                m_Audio.PlayOneShot(clip);
+            }
+            else if (m_BumpSound != null)
+            {
+                // A container (PlayOneShot only accepts clips): set it as the source's resource and Play; it picks
+                // the clip, pitch and volume itself. This AudioSource only plays bumps, which are at least a second
+                // apart, so Play() restarting the source never cuts another sound off.
+                m_Audio.resource = m_BumpSound;
+                m_Audio.Play();
+            }
         }
 
         /// <summary>If the player tapped the ball while it's close enough, send it back to the FurBrain.</summary>

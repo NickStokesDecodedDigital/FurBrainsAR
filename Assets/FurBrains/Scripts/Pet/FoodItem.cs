@@ -29,6 +29,11 @@ namespace FurBrains
         [Tooltip("How much hunger this restores, in the same units as FurBrainNeeds' Max Hunger (100 by default).")]
         float m_HungerRestored = 20f;
 
+        [SerializeField]
+        [Tooltip("Colour of the crumbs that fly out when the FurBrain eats this. Leave it clear (fully " +
+                 "transparent) and Tools → FurBrains → Set Up Eat Effect fills it in from the icon's colours.")]
+        Color m_CrumbColor = Color.clear;
+
         /// <summary>Name shown on the button when there's no icon.</summary>
         public string displayName => m_DisplayName;
 
@@ -41,7 +46,13 @@ namespace FurBrains
         /// <summary>How much hunger this restores.</summary>
         public float hungerRestored => m_HungerRestored;
 
+        /// <summary>Colour of the crumbs when eaten (clear = not set).</summary>
+        public Color crumbColor => m_CrumbColor;
+
 #if UNITY_EDITOR
+        /// <summary>Editor-only: lets the eat-effect tool fill in the crumb colour from the icon.</summary>
+        public void EditorSetCrumbColor(Color color) => m_CrumbColor = color;
+
         /// <summary>Editor-only setup, used by the scene setup tool when it creates the starter foods.</summary>
         public void EditorInitialize(string displayName, int price, float hungerRestored)
         {

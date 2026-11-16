@@ -2,11 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace FurBrains
 {
     /// <summary>
-    /// Decides the FurBrain's facial expression: a base mood from its hunger, plus short reactions (e.g. a happy face
+    /// Decides the FurBrain's facial expression: a base mood from its happiness, plus short reactions (e.g. a happy face
     /// while waving) that temporarily take over.
     /// </summary>
     /// <remarks>
@@ -15,36 +16,40 @@ namespace FurBrains
     /// would wipe a happy mood. So they all go through this component, which works out the single expression to show
     /// and sends it to FurBrainFace (which does the easing and blinking).
     ///
-    /// <b>Moods</b> are bands of the hunger bar (in percent). The band with the highest Min Hunger % at or below the
-    /// current hunger wins. Each band lists the blend shapes to turn on; an empty list is the plain, neutral face.
+    /// <b>Moods</b> are bands of happiness (in percent), where happiness is the average of the Hunger and Play needs
+    /// (FurBrainNeeds.happinessNormalized). The band with the highest Min Happiness % at or below the current happiness
+    /// wins. Each band lists the blend shapes to turn on; an empty list is the plain, neutral face.
     ///
-    /// Hunger lives in the scene (FurBrainNeeds), while this component is on the spawned FurBrain, so it finds
+    /// The needs live in the scene (FurBrainNeeds), while this component is on the spawned FurBrain, so it finds
     /// FurBrainNeeds at runtime.
     /// </remarks>
     public class FurBrainMood : MonoBehaviour
     {
-        /// <summary>One expression band of the hunger bar.</summary>
+        /// <summary>One expression band of happiness.</summary>
         [Serializable]
         public class MoodBand
         {
             [Tooltip("Just a label for the Inspector.")]
             public string name;
 
+            // FormerlySerializedAs: this field used to be called minHungerPercent. The attribute tells Unity to read
+            // the old name from existing prefabs, so values already set in the Inspector aren't lost by the rename.
             [Range(0f, 100f)]
-            [Tooltip("This mood applies from this hunger percentage upward (until the next band starts).")]
-            public float minHungerPercent;
+            [FormerlySerializedAs("minHungerPercent")]
+            [Tooltip("This mood applies from this happiness percentage upward (until the next band starts).")]
+            public float minHappinessPercent;
 
             [Tooltip("Blend shapes to show at full strength. Empty = neutral face.")]
             public string[] shapes = Array.Empty<string>();
         }
 
         [SerializeField]
-        [Tooltip("Expression for each part of the hunger bar.")]
+        [Tooltip("Expression for each band of happiness (the average of hunger and play).")]
         List<MoodBand> m_Bands = new()
         {
-            new MoodBand { name = "Sad", minHungerPercent = 0f, shapes = new[] { "Sadness", "SadEar" } },
-            new MoodBand { name = "Neutral", minHungerPercent = 30f },
-            new MoodBand { name = "Very happy", minHungerPercent = 60f, shapes = new[] { "Empowered" } },
+            new MoodBand { name = "Sad", minHappinessPercent = 0f, shapes = new[] { "Sadness", "SadEar" } },
+            new MoodBand { name = "Neutral", minHappinessPercent = 30f },
+            new MoodBand { name = "Very happy", minHappinessPercent = 60f, shapes = new[] { "Empowered" } },
         };
 
         [SerializeField]
@@ -52,7 +57,7 @@ namespace FurBrains
         FurBrainFace m_Face;
 
         [SerializeField]
-        [Tooltip("Hunger source. Found in the scene automatically if left empty.")]
+        [Tooltip("The needs (happiness comes from hunger and play). Found in the scene automatically if left empty.")]
         FurBrainNeeds m_Needs;
 
         // Every shape this component has ever turned on, so it can turn them off again when the expression changes.
@@ -61,8 +66,9 @@ namespace FurBrains
 
         string[] m_ReactionShapes;
         float m_ReactionEndTime = -1f;
+        string[] m_HeldShapes; // shown instead of the mood until released (null = nothing held)
 
-        /// <summary>The hunger band currently shown (null if there's no hunger source).</summary>
+        /// <summary>The happiness band currently shown (null if there's no needs source).</summary>
         public MoodBand currentBand { get; private set; }
 
         void Awake()
@@ -84,15 +90,34 @@ namespace FurBrains
             m_ManagedShapes.UnionWith(shapes);
         }
 
+        /// <summary>
+        /// Shows these shapes instead of the mood until <see cref="ReleaseHold"/> is called, e.g. an "O" mouth for
+        /// the whole of a bubble-blowing game. Short reactions (<see cref="React"/>) still play over it, then the
+        /// held face comes back.
+        /// </summary>
+        public void Hold(params string[] shapes)
+        {
+            m_HeldShapes = shapes;
+            m_ManagedShapes.UnionWith(shapes);
+        }
+
+        /// <summary>Stops holding a face; the mood takes over again.</summary>
+        public void ReleaseHold() => m_HeldShapes = null;
+
         void Update()
         {
             if (m_Face == null)
                 return;
 
+            // Three layers, highest priority first: a short reaction, then a held face, then the happiness mood.
             m_Wanted.Clear();
             if (Time.time < m_ReactionEndTime && m_ReactionShapes != null)
             {
                 m_Wanted.UnionWith(m_ReactionShapes);
+            }
+            else if (m_HeldShapes != null)
+            {
+                m_Wanted.UnionWith(m_HeldShapes);
             }
             else
             {
@@ -110,9 +135,9 @@ namespace FurBrains
         {
             if (m_Needs == null)
                 return null;
-            var percent = m_Needs.hungerNormalized * 100f;
-            return m_Bands.Where(b => b.minHungerPercent <= percent)
-                          .OrderByDescending(b => b.minHungerPercent)
+            var percent = m_Needs.happinessNormalized * 100f;
+            return m_Bands.Where(b => b.minHappinessPercent <= percent)
+                          .OrderByDescending(b => b.minHappinessPercent)
                           .FirstOrDefault();
         }
     }

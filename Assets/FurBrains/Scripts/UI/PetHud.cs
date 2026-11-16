@@ -5,7 +5,8 @@ using UnityEngine.UI;
 namespace FurBrains
 {
     /// <summary>
-    /// Top-right display: the player's coins and the FurBrain's hunger bar.
+    /// Top-left display: the player's coins. (It can also drive a hunger bar, but hunger now shows inside the food
+    /// button through NeedMeter, and Arrange HUD removes the old bar; with no bar assigned that part does nothing.)
     /// </summary>
     /// <remarks>
     /// The HUD only <i>shows</i> values; PlayerWallet and FurBrainNeeds own them. It reads them every frame through

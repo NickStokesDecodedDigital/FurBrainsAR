@@ -25,8 +25,10 @@ namespace FurBrains.EditorTools
 
             PlayerPrefs.DeleteKey(PlayerWallet.SaveKey);
             PlayerPrefs.DeleteKey(FurBrainNeeds.SaveKey);
+            PlayerPrefs.DeleteKey(FurBrainNeeds.PlaySaveKey);
+            PlayerPrefs.DeleteKey(SoundSettings.SaveKey);
             PlayerPrefs.Save();
-            Debug.Log("[FurBrains] Cleared saved coins and hunger. The next Play session starts fresh.");
+            Debug.Log("[FurBrains] Cleared saved coins, hunger, play and the mute setting. The next Play session starts fresh.");
         }
     }
 }

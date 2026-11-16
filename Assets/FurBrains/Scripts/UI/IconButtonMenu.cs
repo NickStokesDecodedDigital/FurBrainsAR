@@ -68,9 +68,10 @@ namespace FurBrains
 
         /// <summary>
         /// Adds a button. <paramref name="onClick"/> runs when it's tapped; <paramref name="canUse"/> is checked every
-        /// frame to grey it out. <paramref name="bottomLabel"/> (e.g. a price) is optional.
+        /// frame to grey it out. <paramref name="bottomLabel"/> (e.g. a price) is optional. Returns the new button,
+        /// so a subclass can add more to it (FoodMenu adds drag-to-feed).
         /// </summary>
-        protected void AddButton(string objectName, Sprite icon, string displayName, string bottomLabel,
+        protected Button AddButton(string objectName, Sprite icon, string displayName, string bottomLabel,
             Action onClick, Func<bool> canUse)
         {
             var button = Instantiate(m_ButtonTemplate, transform);
@@ -95,7 +96,7 @@ namespace FurBrains
 
             var hasBottom = !string.IsNullOrEmpty(bottomLabel);
             if (hasBottom)
-                AddLabel(button.transform, "Label", bottomLabel, 34f, new Vector2(0f, 0f), new Vector2(1f, 0.35f));
+                AddLabel(button.transform, "Label", bottomLabel, 34f, new Vector2(0f, 0f), new Vector2(1f, 0.15f));
             // The item's name, if there's no icon yet: above the bottom label, or centred when there isn't one.
             if (icon == null)
                 AddLabel(button.transform, "Name", displayName, 28f, new Vector2(0f, hasBottom ? 0.35f : 0f), Vector2.one);
@@ -106,6 +107,7 @@ namespace FurBrains
                 Graphics = button.GetComponentsInChildren<Graphic>(true),
                 CanUse = canUse,
             });
+            return button;
         }
 
         protected virtual void Update()
