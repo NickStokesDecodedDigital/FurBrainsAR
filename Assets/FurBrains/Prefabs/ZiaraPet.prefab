@@ -371,7 +371,7 @@ ParticleSystem:
         m_RotationOrder: 4
     startSizeY:
       serializedVersion: 2
-      minMaxState: 0
+      minMaxState: 3
       scalar: 1
       minScalar: 1
       maxCurve:
@@ -424,7 +424,7 @@ ParticleSystem:
         m_RotationOrder: 4
     startSizeZ:
       serializedVersion: 2
-      minMaxState: 0
+      minMaxState: 3
       scalar: 1
       minScalar: 1
       maxCurve:
@@ -5082,6 +5082,8 @@ MonoBehaviour:
   m_Face: {fileID: 0}
   m_PlaySummonAnimation: 1
   m_MaxTapDuration: 0.35
+  m_TapCooldown: 0.5
+  m_FeedCooldown: 0.5
   m_FacePlayer: 1
   m_TurnSpeed: 45
   m_StartTurnAngle: 20

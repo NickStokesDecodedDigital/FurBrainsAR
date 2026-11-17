@@ -124,6 +124,16 @@ namespace FurBrains
         [Tooltip("Longest touch, in seconds, that still counts as a tap rather than a drag.")]
         float m_MaxTapDuration = 0.35f;
 
+        [SerializeField, Min(0f)]
+        [Tooltip("After the player taps the FurBrain, further taps are ignored for this many seconds, so rapid " +
+                 "tapping doesn't restart the tap animation over and over. 0 = no lockout.")]
+        float m_TapCooldown = 1.5f;
+
+        [SerializeField, Min(0f)]
+        [Tooltip("After eating, the FurBrain can't be fed again for this many seconds (the food buttons grey out), " +
+                 "so the eat animation can finish and coins aren't spent in a rush. 0 = no lockout.")]
+        float m_FeedCooldown = 2f;
+
         [SerializeField]
         [Tooltip("Slowly turn to face the player (the AR camera).")]
         bool m_FacePlayer = true;
@@ -148,6 +158,8 @@ namespace FurBrains
         float m_ClearFaceTime = -1f;
         string[] m_FaceShapesToClear;
         bool m_Turning;
+        float m_NextTapTime;  // Time.time from which a tap counts again
+        float m_NextFeedTime; // Time.time from which the FurBrain can eat again
 
         /// <summary>Animator on the character model.</summary>
         public Animator animator
@@ -170,6 +182,9 @@ namespace FurBrains
 
         /// <summary>Particle system that sprays crumbs when the FurBrain eats.</summary>
         public ParticleSystem eatBurst { get => m_EatBurst; set => m_EatBurst = value; }
+
+        /// <summary>False for a short while after eating (Feed Cooldown). FoodMenu checks it before selling food.</summary>
+        public bool canEat => Time.time >= m_NextFeedTime;
 
         void Awake()
         {
@@ -309,6 +324,7 @@ namespace FurBrains
         /// </summary>
         public void Eat(Color crumbColor)
         {
+            m_NextFeedTime = Time.time + m_FeedCooldown; // start the lockout (canEat is false until then)
             PlayAction(FeedTrigger, m_FeedAnimation, m_FeedExpression);
             PlaySound(m_EatSound);
             SprayCrumbs(crumbColor);
@@ -321,15 +337,8 @@ namespace FurBrains
 
             // In front of the FurBrain's face: up by a fraction of its height (measured from its renderers, so it
             // fits any size), and a little toward the player.
-            var height = 0.3f;
-            var renderers = GetComponentsInChildren<Renderer>();
-            if (renderers.Length > 0)
-            {
-                var top = float.MinValue;
-                foreach (var r in renderers)
-                    top = Mathf.Max(top, r.bounds.max.y);
-                height = top - transform.position.y;
-            }
+            // (Body parts only: measuring the Eat Burst itself made the first feed's crumbs start too high.)
+            var height = FurBrainBounds.Height(transform);
             m_EatBurst.transform.position = transform.position + transform.up * (height * m_EatBurstHeight) +
                                             transform.forward * (height * 0.15f);
 
@@ -406,8 +415,13 @@ namespace FurBrains
             // so they don't count as tapping the FurBrain. Games can still call OnTapped() themselves for a reaction.
             if (m_Runner != null && m_Runner.isPlaying)
                 return;
-            if (!args.isCanceled && Time.time - m_SelectStartTime <= m_MaxTapDuration)
-                OnTapped();
+            if (args.isCanceled || Time.time - m_SelectStartTime > m_MaxTapDuration)
+                return; // not a tap (a long press or a drag)
+            if (Time.time < m_NextTapTime)
+                return; // still in the lockout after the last tap: ignore it
+
+            m_NextTapTime = Time.time + m_TapCooldown;
+            OnTapped();
         }
     }
 }

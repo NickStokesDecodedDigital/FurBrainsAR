@@ -158,18 +158,7 @@ namespace FurBrains
         }
 
         /// <summary>Height from the FurBrain's feet to the top of its head (helmet included), from its renderers.</summary>
-        static float MeasurePetHeight(Transform pet)
-        {
-            if (pet == null)
-                return 0.6f; // fallback: the pet builder makes FurBrains 0.6 m tall
-            var renderers = pet.GetComponentsInChildren<Renderer>();
-            if (renderers.Length == 0)
-                return 0.6f; // fallback: the pet builder makes FurBrains 0.6 m tall
-            var top = float.MinValue;
-            foreach (var r in renderers)
-                top = Mathf.Max(top, r.bounds.max.y);
-            return Mathf.Max(0.05f, top - pet.position.y);
-        }
+        static float MeasurePetHeight(Transform pet) => FurBrainBounds.Height(pet);
 
         /// <summary>Testing aid for the runner's context-menu items (internal: only code in this assembly can call it).</summary>
         internal void ForceEnd(MinigameResult result) => End(result);

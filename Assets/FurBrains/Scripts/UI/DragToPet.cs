@@ -178,13 +178,9 @@ namespace FurBrains
             if (m_Summoner == null || !m_Summoner.hasSummoned || cam == null)
                 return false;
 
-            // The FurBrain's 3D box: all its renderers' bounds merged (Encapsulate grows a box to include another).
-            var renderers = m_Summoner.summoned.GetComponentsInChildren<Renderer>();
-            if (renderers.Length == 0)
+            // The FurBrain's 3D box: its body parts' bounds merged.
+            if (!FurBrainBounds.TryGet(m_Summoner.summoned.transform, out var bounds))
                 return false;
-            var bounds = renderers[0].bounds;
-            foreach (var r in renderers)
-                bounds.Encapsulate(r.bounds);
 
             // Project the box's 8 corners onto the screen and take the rectangle around them.
             var min = new Vector2(float.MaxValue, float.MaxValue);

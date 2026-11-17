@@ -34,6 +34,11 @@ namespace FurBrains
         [Tooltip("Size of the whole menu (panel, buttons and cancel button) relative to the template's design.")]
         float m_MenuScale = 0.9f;
 
+        [SerializeField]
+        [Tooltip("Small icon shown just left of each button's bottom label, e.g. a coin beside the food prices. " +
+                 "Empty = text only.")]
+        Sprite m_LabelIcon;
+
         /// <summary>One built button and when it can be used.</summary>
         struct Entry
         {
@@ -96,7 +101,7 @@ namespace FurBrains
 
             var hasBottom = !string.IsNullOrEmpty(bottomLabel);
             if (hasBottom)
-                AddLabel(button.transform, "Label", bottomLabel, 34f, new Vector2(0f, 0f), new Vector2(1f, 0.15f));
+                AddBottomLabel(button.transform, bottomLabel);
             // The item's name, if there's no icon yet: above the bottom label, or centred when there isn't one.
             if (icon == null)
                 AddLabel(button.transform, "Name", displayName, 28f, new Vector2(0f, hasBottom ? 0.35f : 0f), Vector2.one);
@@ -175,7 +180,58 @@ namespace FurBrains
             }
         }
 
-        static void AddLabel(Transform parent, string name, string text, float size, Vector2 anchorMin, Vector2 anchorMax)
+        /// <summary>
+        /// The bottom label (e.g. a price), with <see cref="m_LabelIcon"/> just to its left when one is set.
+        /// </summary>
+        /// <remarks>
+        /// Without an icon it's a plain centred text. With one, a "Label" row holds the icon and the text side by side:
+        /// a HorizontalLayoutGroup lines its children up left to right and centres the pair, so "[coin] 5" and
+        /// "[coin] 25" both stay centred whatever the number's width. The text reports its own width to the layout
+        /// group (TextMeshPro does that automatically); the icon's size comes from its LayoutElement.
+        /// </remarks>
+        void AddBottomLabel(Transform button, string text)
+        {
+            const float fontSize = 34f;
+            var anchorMin = new Vector2(0f, 0f);
+            var anchorMax = new Vector2(1f, 0.15f);
+
+            if (m_LabelIcon == null)
+            {
+                AddLabel(button, "Label", text, fontSize, anchorMin, anchorMax);
+                return;
+            }
+
+            var row = new GameObject("Label", typeof(RectTransform));
+            row.transform.SetParent(button, false);
+            var rowRect = (RectTransform)row.transform;
+            rowRect.anchorMin = anchorMin;
+            rowRect.anchorMax = anchorMax;
+            rowRect.offsetMin = rowRect.offsetMax = Vector2.zero;
+
+            var layout = row.AddComponent<HorizontalLayoutGroup>();
+            layout.childAlignment = TextAnchor.MiddleCenter;
+            layout.spacing = 4f;
+            layout.childControlWidth = true;   // children get their preferred widths...
+            layout.childControlHeight = true;
+            layout.childForceExpandWidth = false; // ...and aren't stretched to fill the row
+            layout.childForceExpandHeight = false;
+
+            // The coin: about the height of the digits.
+            var icon = new GameObject("Label Icon", typeof(RectTransform));
+            icon.transform.SetParent(row.transform, false);
+            var image = icon.AddComponent<Image>();
+            image.sprite = m_LabelIcon;
+            image.preserveAspect = true;
+            image.raycastTarget = false; // taps go to the button, not the coin
+            var iconSize = icon.AddComponent<LayoutElement>();
+            iconSize.preferredWidth = iconSize.preferredHeight = fontSize * 0.9f;
+
+            var label = AddLabel(row.transform, "Label Text", text, fontSize, Vector2.zero, Vector2.one);
+            label.textWrappingMode = TextWrappingModes.NoWrap; // keep the number on one line so it reports its real width
+        }
+
+        static TextMeshProUGUI AddLabel(Transform parent, string name, string text, float size, Vector2 anchorMin,
+            Vector2 anchorMax)
         {
             var go = new GameObject(name, typeof(RectTransform));
             go.transform.SetParent(parent, false);
@@ -191,6 +247,7 @@ namespace FurBrains
             label.alignment = TextAlignmentOptions.Center;
             label.color = Color.white;
             label.raycastTarget = false;
+            return label;
         }
     }
 }

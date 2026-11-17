@@ -18,11 +18,11 @@ AudioRandomContainer:
   m_PrefabAsset: {fileID: 0}
   m_Name: Bump
   m_Volume: 0
-  m_Pitch: 0
+  m_Pitch: -100
   m_AutomaticTriggerTime: 0
   m_LoopCount: 1
   m_VolumeRandomizationRange: {x: 0, y: 10}
-  m_PitchRandomizationRange: {x: -20, y: 20}
+  m_PitchRandomizationRange: {x: -100, y: 100}
   m_AutomaticTriggerTimeRandomizationRange: {x: 0, y: 0}
   m_LoopCountRandomizationRange: {x: 0, y: 0}
   m_Elements:

@@ -75,8 +75,13 @@ namespace FurBrains
         bool CanBuy(FoodItem food) =>
             m_Wallet != null && m_Needs != null && m_Summoner != null &&
             m_Summoner.hasSummoned &&
+            PetCanEat() &&
             m_Wallet.CanAfford(food.price) &&
             !m_Needs.isFull;
+
+        // False while the FurBrain is still in its Feed Cooldown after the last food (the buttons grey out meanwhile).
+        bool PetCanEat() =>
+            !m_Summoner.summoned.TryGetComponent<FurBrainPet>(out var pet) || pet.canEat;
 
         void Buy(FoodItem food)
         {
@@ -101,32 +106,42 @@ namespace FurBrains
         }
 
         /// <summary>
-        /// While the menu is open, the FurBrain holds an eager "O" face (through FurBrainMood, the face's owner);
-        /// when it closes, or the FurBrain is deleted or re-summoned, the hold moves or is released.
+        /// While the menu is open, the FurBrain holds an eager "O" face (through FurBrainMood, the face's owner).
+        /// Closing the menu only slides it down (this component stays active), so each frame we compare
+        /// "is the menu open?" with "are we holding the face?" and act on the two moments when they differ.
         /// </summary>
         void UpdatePetFace()
         {
-            FurBrainMood wanted = null;
             var menuOpen = m_MenuManager != null && m_MenuManager.isFoodMenuShown;
-            if (menuOpen && m_PetExpression.Length > 0 && m_Summoner != null && m_Summoner.hasSummoned)
-                m_Summoner.summoned.TryGetComponent(out wanted);
+            var holdingFace = m_HeldMood != null;
 
-            if (wanted == m_HeldMood)
-                return; // nothing changed
+            if (menuOpen && !holdingFace)
+                StartHoldingFace();   // the menu has just opened
+            else if (!menuOpen && holdingFace)
+                StopHoldingFace();    // the menu has just closed
+            // Otherwise nothing changed since last frame: nothing to do.
+        }
 
-            if (m_HeldMood != null)
-                m_HeldMood.ReleaseHold();
-            m_HeldMood = wanted;
-            if (m_HeldMood != null)
+        void StartHoldingFace()
+        {
+            if (m_PetExpression.Length == 0 || m_Summoner == null || !m_Summoner.hasSummoned)
+                return; // no face to show, or no FurBrain to show it on
+
+            // TryGetComponent fills m_HeldMood ("out", like a C++ reference parameter) and returns whether it found one.
+            if (m_Summoner.summoned.TryGetComponent(out m_HeldMood))
                 m_HeldMood.Hold(m_PetExpression);
         }
 
-        // If this menu is switched off (e.g. a minigame hides it), don't leave the FurBrain stuck with the face.
-        void OnDisable()
+        void StopHoldingFace()
         {
+            // Unity's != null is also false for a FurBrain that was deleted in the meantime, so this is safe.
             if (m_HeldMood != null)
                 m_HeldMood.ReleaseHold();
             m_HeldMood = null;
         }
+
+        // If this menu is switched off entirely (e.g. a minigame hides it), don't leave the FurBrain with the face.
+        // (Deleting the FurBrain also closes the menu, through ARTemplateMenuManager, so that's covered above.)
+        void OnDisable() => StopHoldingFace();
     }
 }
