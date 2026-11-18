@@ -39,6 +39,13 @@ namespace FurBrains.EditorTools
         // Size of the menus' round X (close) buttons, in canvas pixels.
         const float k_CloseButtonSize = 90f;
 
+        // The display-only need meter shown beside the X inside the food and minigame menus, and its size in pixels.
+        const string k_BadgeName = "Need Badge";
+        const float k_BadgeSize = 120f;
+
+        // The Play badge shown at the bottom centre during minigames (a child of the Minigame HUD).
+        const string k_GameBadgeName = "Play Badge";
+
         [MenuItem("Tools/FurBrains/Arrange HUD In Open Scene")]
         static void Arrange()
         {
@@ -99,6 +106,14 @@ namespace FurBrains.EditorTools
             AddBorder(food);
             AddBorder(FindInScene("Minigame Button"));
             AddBorder(FindInScene("Delete Button"));
+
+            // The open menus cover the bottom row, so each menu gets a copy of its button's meter beside its X
+            // (hunger left of the food menu's X, play right of the minigame menu's X: the same sides as the buttons).
+            AddMenuNeedBadge(food, FindFirstInScene("Food Menu Animator", "Object Menu Animator"), -1f);
+            AddMenuNeedBadge(FindInScene("Minigame Button"), FindInScene("Minigame Menu Animator"), 1f);
+
+            // The bottom buttons hide during a game, so show the Play meter at the bottom centre while one runs.
+            AddInGamePlayBadge(FindInScene("Minigame Button"));
 
             SetUpOptionsMenu();
         }
@@ -250,6 +265,103 @@ namespace FurBrains.EditorTools
             var meter = fill.AddComponent<NeedMeter>();
             meter.need = need;
             SetReference(meter, "m_Fill", image);
+        }
+
+        /// <summary>
+        /// Adds a "Need Badge" to a menu panel, in its bottom row beside its round X. An open menu covers the bottom
+        /// row, so without it the player couldn't watch hunger rise while feeding. <paramref name="side"/> is -1 for
+        /// left of the X, +1 for right. Skipped if the panel already has one, so Inspector tweaks are kept.
+        /// </summary>
+        static void AddMenuNeedBadge(GameObject sourceButton, GameObject menuAnimator, float side)
+        {
+            if (sourceButton == null || menuAnimator == null)
+                return;
+            var panel = menuAnimator.transform.Find("Object Menu");
+            if (panel == null || panel.Find(k_BadgeName) != null)
+                return;
+
+            // In the X's row: the X's height, beside it with the usual gap between edges.
+            var rowY = 80f;
+            var cancel = panel.Find("Cancel Button") as RectTransform;
+            if (cancel != null)
+                rowY = cancel.anchoredPosition.y;
+            var position = new Vector2(side * (k_CloseButtonSize * 0.5f + k_ButtonGap + k_BadgeSize * 0.5f), rowY);
+            CreateNeedBadge(sourceButton, panel, k_BadgeName, position, k_BadgeSize);
+        }
+
+        /// <summary>
+        /// Adds a Play badge at the bottom centre that MinigameHud shows only while a game runs (the bottom buttons
+        /// hide during games, so the player could otherwise not see Play rising). Same size as the real button.
+        /// Skipped if the HUD already has one.
+        /// </summary>
+        static void AddInGamePlayBadge(GameObject minigameButton)
+        {
+            var hud = Object.FindAnyObjectByType<MinigameHud>(FindObjectsInactive.Include);
+            if (minigameButton == null || hud == null || hud.transform.Find(k_GameBadgeName) != null)
+                return;
+
+            var buttonRect = (RectTransform)minigameButton.transform;
+            var size = buttonRect.rect.width * buttonRect.localScale.x; // on-screen size of the real button
+            var badge = CreateNeedBadge(minigameButton, hud.transform, k_GameBadgeName,
+                new Vector2(0f, k_BottomRowY), size);
+            badge.SetActive(false); // MinigameHud shows it during games
+
+            // Add it to the HUD's "Show While Playing" list (SerializedObject edits the saved field with Undo).
+            var serialized = new SerializedObject(hud);
+            var list = serialized.FindProperty("m_ShowWhilePlaying");
+            list.arraySize++;
+            list.GetArrayElementAtIndex(list.arraySize - 1).objectReferenceValue = badge;
+            serialized.ApplyModifiedProperties();
+        }
+
+        /// <summary>
+        /// A display-only copy of a round bottom button (icon, Need Fill meter, ring) under <paramref name="parent"/>,
+        /// anchored at its bottom centre with the given offset and on-screen size.
+        /// </summary>
+        /// <remarks>
+        /// It's a copy, so it keeps any restyling of the real button, and its NeedMeter (which reads FurBrainNeeds every
+        /// frame) makes it fill live. The Button, its scripts and its caption are removed and nothing on it catches
+        /// taps, so taps fall through (e.g. they don't close a menu).
+        /// </remarks>
+        static GameObject CreateNeedBadge(GameObject sourceButton, Transform parent, string name, Vector2 position,
+            float size)
+        {
+            var badge = Object.Instantiate(sourceButton, parent, false);
+            badge.name = name;
+            badge.SetActive(true);
+            Undo.RegisterCreatedObjectUndo(badge, "Add Need Badge");
+
+            // Scripts on the root go first (e.g. PopupMenu, which requires the Button), then the Button itself;
+            // Images stay. Graphic is the base class of Image and text, Selectable of Button.
+            foreach (var script in badge.GetComponents<MonoBehaviour>())
+                if (!(script is Graphic) && !(script is Selectable))
+                    Object.DestroyImmediate(script);
+            foreach (var selectable in badge.GetComponents<Selectable>())
+            {
+                // The real button's dark background comes from its Button tint (Normal Color, near-black), applied
+                // at runtime on top of a white circle sprite. Without the Button that tint is gone, so bake it into
+                // the Image's own colour; otherwise the badge is a white circle and the white icon disappears.
+                if (selectable.transition == Selectable.Transition.ColorTint && selectable.targetGraphic != null)
+                    selectable.targetGraphic.color *= selectable.colors.normalColor * selectable.colors.colorMultiplier;
+                Object.DestroyImmediate(selectable);
+            }
+
+            foreach (var text in badge.GetComponentsInChildren<TMPro.TMP_Text>(true))
+                Object.DestroyImmediate(text.gameObject);
+            foreach (var graphic in badge.GetComponentsInChildren<Graphic>(true))
+            {
+                graphic.raycastTarget = false;
+                graphic.enabled = true; // PopupMenu hides the real button by disabling its graphics
+            }
+
+            var rect = (RectTransform)badge.transform;
+            rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.anchoredPosition = position;
+            var scale = rect.rect.width > 0f ? size / rect.rect.width : 1f;
+            rect.localScale = new Vector3(scale, scale, 1f);
+            rect.SetAsLastSibling(); // drawn on top of its parent's background
+            return badge;
         }
 
         /// <summary>

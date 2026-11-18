@@ -27,6 +27,10 @@ namespace FurBrains
         TMP_Text m_LiveScoreText;
 
         [SerializeField]
+        [Tooltip("Optional background or border behind the live score, shown and hidden together with it.")]
+        GameObject m_LiveScoreBackground;
+
+        [SerializeField]
         [Tooltip("Fill image of the time bar, shown while a timed game runs. Its width shrinks as time runs out.")]
         Image m_TimeFill;
 
@@ -55,6 +59,10 @@ namespace FurBrains
                  "already hide themselves.")]
         GameObject[] m_HideWhilePlaying = System.Array.Empty<GameObject>();
 
+        [SerializeField]
+        [Tooltip("UI shown only while a game runs (e.g. the Play meter badge at the bottom centre). Hidden otherwise.")]
+        GameObject[] m_ShowWhilePlaying = System.Array.Empty<GameObject>();
+
         float m_CloseTime = -1f;
         bool m_WasPlaying;
         int m_ShownScore = int.MinValue;
@@ -65,11 +73,14 @@ namespace FurBrains
                 m_Runner = FindAnyObjectByType<MinigameRunner>();
             // Start hidden (not via SetPlaying, which would also re-show the Hide While Playing objects).
             if (m_ExitButton != null) m_ExitButton.gameObject.SetActive(false);
-            if (m_LiveScoreText != null) m_LiveScoreText.gameObject.SetActive(false);
+            SetLiveScoreVisible(false);
             if (m_TimeFill != null && m_TimeFill.transform.parent != null)
                 m_TimeFill.transform.parent.gameObject.SetActive(false);
             if (m_ResultsPanel != null)
                 m_ResultsPanel.SetActive(false);
+            foreach (var go in m_ShowWhilePlaying)
+                if (go != null)
+                    go.SetActive(false);
         }
 
         void OnEnable()
@@ -101,8 +112,7 @@ namespace FurBrains
                 if (playing)
                     CloseResults();
                 SetPlaying(playing);
-                if (m_LiveScoreText != null)
-                    m_LiveScoreText.gameObject.SetActive(playing && game.resultKind == MinigameResultKind.Score);
+                SetLiveScoreVisible(playing && game.resultKind == MinigameResultKind.Score);
                 m_ShownScore = int.MinValue;
             }
 
@@ -151,11 +161,23 @@ namespace FurBrains
         {
             if (m_ExitButton != null)
                 m_ExitButton.gameObject.SetActive(playing);
-            if (m_LiveScoreText != null && !playing)
-                m_LiveScoreText.gameObject.SetActive(false);
+            if (!playing)
+                SetLiveScoreVisible(false);
             foreach (var go in m_HideWhilePlaying)
                 if (go != null)
                     go.SetActive(!playing);
+            foreach (var go in m_ShowWhilePlaying)
+                if (go != null)
+                    go.SetActive(playing);
+        }
+
+        // The live score and its background (if any) always appear and disappear together.
+        void SetLiveScoreVisible(bool visible)
+        {
+            if (m_LiveScoreText != null)
+                m_LiveScoreText.gameObject.SetActive(visible);
+            if (m_LiveScoreBackground != null)
+                m_LiveScoreBackground.SetActive(visible);
         }
 
         void OnExit()

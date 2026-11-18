@@ -16,4 +16,4 @@ MonoBehaviour:
   m_Icon: {fileID: 0}
   m_Prefab: {fileID: 2267430647014850801, guid: 1418eada929fcb14ab5a9369e05be86a, type: 3}
   m_CoinsPerPoint: 1
-  m_MinimumCoins: 0
+  m_MinimumCoins: 1
