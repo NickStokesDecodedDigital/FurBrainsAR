@@ -15,5 +15,6 @@ MonoBehaviour:
   m_DisplayName: Bubble Pop
   m_Icon: {fileID: 0}
   m_Prefab: {fileID: 171090800209583369, guid: d445f678af20bb449ac4cdf5b4fab01d, type: 3}
-  m_CoinsPerPoint: 0.5
+  m_CoinsPerPoint: 0.25
   m_MinimumCoins: 2
+  m_Instructions: 

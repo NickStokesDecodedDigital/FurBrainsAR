@@ -35,6 +35,12 @@ namespace FurBrains
         [Tooltip("Coins given even for a low score or a loss (no punishing fail states).")]
         int m_MinimumCoins = 2;
 
+        [SerializeField, TextArea]
+        [Tooltip("Shown before the game starts; the player taps to begin. Empty = start straight away.")]
+        string m_Instructions;
+
+        public string instructions => m_Instructions;
+
         /// <summary>Name shown on the menu button when there's no icon.</summary>
         public string displayName => m_DisplayName;
 

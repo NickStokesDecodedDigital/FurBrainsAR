@@ -6008,7 +6008,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 1, y: 1}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: -50, y: -212.5}
+  m_AnchoredPosition: {x: -20, y: -130}
   m_SizeDelta: {x: 300, y: 128}
   m_Pivot: {x: 1, y: 1}
 --- !u!114 &846084845
@@ -14882,6 +14882,7 @@ GameObject:
   - component: {fileID: 1984555381}
   - component: {fileID: 1984555384}
   - component: {fileID: 1984555385}
+  - component: {fileID: 1984555386}
   m_Layer: 0
   m_Name: FurBrains Game
   m_TagString: Untagged
@@ -14973,6 +14974,19 @@ MonoBehaviour:
   m_Needs: {fileID: 0}
   m_CompleteSound: {fileID: 8300000, guid: cf9063d8d64238f428415498d7a8fe06, type: 3}
   m_PlayPerSecond: 2.5
+--- !u!114 &1984555386
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1984555380}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5955c3fdf339fb740a84041fc55e4cc3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FurBrains.FlutterBridge
+  m_Wallet: {fileID: 0}
 --- !u!1 &1995982418
 GameObject:
   m_ObjectHideFlags: 0

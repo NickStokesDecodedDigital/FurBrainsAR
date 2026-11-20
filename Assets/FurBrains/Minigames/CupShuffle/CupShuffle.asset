@@ -15,5 +15,6 @@ MonoBehaviour:
   m_DisplayName: Cup Shuffle
   m_Icon: {fileID: 0}
   m_Prefab: {fileID: 3029129723626771937, guid: 292711be9a93d8444abcee8a9be3d913, type: 3}
-  m_CoinsPerPoint: 10
-  m_MinimumCoins: 3
+  m_CoinsPerPoint: 6
+  m_MinimumCoins: 2
+  m_Instructions: 

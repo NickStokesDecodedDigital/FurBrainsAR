@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "com.learntoflutter.flutter_embed_unity_6000_0": "https://github.com/learntoflutter/flutter_embed_unity.git?path=example_unity_6000_0_project/Assets/FlutterEmbed#v2.0.0",
     "com.unity.feature.development": "1.0.2",
     "com.unity.ide.rider": "3.1.0",
     "com.unity.inputsystem": "1.20.1",

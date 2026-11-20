@@ -15,5 +15,6 @@ MonoBehaviour:
   m_DisplayName: Copy Ziara
   m_Icon: {fileID: 0}
   m_Prefab: {fileID: 1706809368103726610, guid: 36d3d778b5ca16c4eac33bee59c5cb59, type: 3}
-  m_CoinsPerPoint: 3
+  m_CoinsPerPoint: 4
   m_MinimumCoins: 2
+  m_Instructions: 
