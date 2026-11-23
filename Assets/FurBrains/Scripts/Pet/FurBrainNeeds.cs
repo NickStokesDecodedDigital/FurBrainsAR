@@ -143,6 +143,17 @@ namespace FurBrains
                 Save();
         }
 
+        /// <summary>
+        /// Sets both needs at once, as 0..1 fractions of full (FlutterBridge uses it to load the parent app's
+        /// food and fun values for the child who is playing). Saved straight away.
+        /// </summary>
+        public void SetLevels(float hungerNormalized, float playNormalized)
+        {
+            m_Hunger.Set(Mathf.Clamp01(hungerNormalized) * m_Hunger.max);
+            m_Play.Set(Mathf.Clamp01(playNormalized) * m_Play.max);
+            Save();
+        }
+
         /// <summary>Writes both needs to the device.</summary>
         public void Save()
         {

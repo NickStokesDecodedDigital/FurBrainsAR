@@ -324,7 +324,7 @@ namespace UnityEngine.XR.Templates.AR
                     m_StepList[i].stepObject.SetActive(true);
                     PreprocessGoal();
                 }
-                else
+                else if (m_StepList[i].stepObject != null) // FurBrains: unused step prompts may have been deleted
                 {
                     m_StepList[i].stepObject.SetActive(false);
                 }
