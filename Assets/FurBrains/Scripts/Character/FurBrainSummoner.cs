@@ -87,6 +87,23 @@ namespace FurBrains
             }
         }
 
+        /// <summary>
+        /// Removes the summoned FurBrain so the player can place it again (Settings → Move Ziara / Scan again). Her
+        /// needs and coins live in the scene, not on her, so nothing is lost. <paramref name="showSummonPrompt"/> =
+        /// false skips the "tap to place" prompt, for when the onboarding shows its own prompts instead.
+        /// </summary>
+        public void Remove(bool showSummonPrompt = true)
+        {
+            if (m_Summoned == null)
+                return;
+            Destroy(m_Summoned);
+            m_Summoned = null;
+            // Handled here rather than by Update noticing the deletion, so the prompt choice is respected.
+            m_HadSummoned = false;
+            if (showSummonPrompt && m_SummonPrompt != null)
+                m_SummonPrompt.SetActive(true);
+        }
+
         void OnObjectSpawned(GameObject spawned)
         {
             m_Summoned = spawned;

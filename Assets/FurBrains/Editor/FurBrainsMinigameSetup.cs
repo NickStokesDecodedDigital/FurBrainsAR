@@ -233,18 +233,9 @@ namespace FurBrains.EditorTools
             var coins = AddText(panel.transform, "Coins Text", "+0", 56f, new Vector2(0.45f, 0.35f), new Vector2(1f, 0.65f));
             coins.alignment = TextAlignmentOptions.MidlineLeft;
 
-            var ok = CreateUiObject("OK Button", panel.transform);
-            var okRect = (RectTransform)ok.transform;
-            okRect.anchorMin = okRect.anchorMax = new Vector2(0.5f, 0f);
-            okRect.pivot = new Vector2(0.5f, 0f);
-            okRect.anchoredPosition = new Vector2(0f, 20f);
-            okRect.sizeDelta = new Vector2(200f, 70f);
-            var okImage = ok.AddComponent<Image>();
-            okImage.sprite = panelSprite;
-            okImage.type = Image.Type.Sliced;
-            okImage.color = new Color(0.45f, 0.85f, 0.4f);
-            var okButton = ok.AddComponent<Button>();
-            AddText(ok.transform, "Text", "OK", 40f, Vector2.zero, Vector2.one);
+            // OK (close) and Play Again side by side along the bottom.
+            var okButton = AddPanelButton(panel.transform, "OK Button", "OK", -80f, new Color(0.45f, 0.85f, 0.4f), panelSprite);
+            var againButton = AddPanelButton(panel.transform, "Play Again Button", "Again", 80f, new Color(0.4f, 0.7f, 1f), panelSprite);
 
             var component = Undo.AddComponent<MinigameHud>(hud);
             SetReference(component, "m_ExitButton", exitButton);
@@ -253,7 +244,26 @@ namespace FurBrains.EditorTools
             SetReference(component, "m_ResultText", result);
             SetReference(component, "m_CoinsText", coins);
             SetReference(component, "m_OkButton", okButton);
+            SetReference(component, "m_PlayAgainButton", againButton);
             return hud;
+        }
+
+        /// <summary>A coloured button on the results panel's bottom edge, x pixels from its centre.</summary>
+        static Button AddPanelButton(Transform panel, string name, string label, float x, Color color, Sprite sprite)
+        {
+            var go = CreateUiObject(name, panel);
+            var rect = (RectTransform)go.transform;
+            rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0f);
+            rect.pivot = new Vector2(0.5f, 0f);
+            rect.anchoredPosition = new Vector2(x, 20f);
+            rect.sizeDelta = new Vector2(140f, 70f);
+            var image = go.AddComponent<Image>();
+            image.sprite = sprite;
+            image.type = Image.Type.Sliced;
+            image.color = color;
+            var button = go.AddComponent<Button>();
+            AddText(go.transform, "Text", label, 40f, Vector2.zero, Vector2.one);
+            return button;
         }
 
         /// <summary>A bar under the live score that empties as a timed game's time runs out. Returns its fill.</summary>

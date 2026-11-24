@@ -39,6 +39,11 @@ namespace FurBrains
         GameObject m_ResultsPanel;
 
         [SerializeField]
+        [Tooltip("Colour of the full-screen backdrop behind the results panel. It dims the game and catches taps, so " +
+                 "the other buttons can't be pressed while the results are up. Alpha 0 = invisible but still blocking.")]
+        Color m_ResultsBackdropColor = new Color(0f, 0f, 0f, 0.4f);
+
+        [SerializeField]
         [Tooltip("Results: the score, or win / good try.")]
         TMP_Text m_ResultText;
 
@@ -49,6 +54,10 @@ namespace FurBrains
         [SerializeField]
         [Tooltip("Closes the results panel.")]
         Button m_OkButton;
+
+        [SerializeField]
+        [Tooltip("Results: starts the same game again. Optional.")]
+        Button m_PlayAgainButton;
 
         [SerializeField]
         [Tooltip("Results close by themselves after this many seconds.")]
@@ -66,6 +75,8 @@ namespace FurBrains
         float m_CloseTime = -1f;
         bool m_WasPlaying;
         int m_ShownScore = int.MinValue;
+        MinigameDefinition m_LastGame; // the game the results panel is showing, for Play Again
+        GameObject m_ResultsBackdrop;  // made in Awake, shown and hidden together with the results panel
 
         void Awake()
         {
@@ -77,7 +88,10 @@ namespace FurBrains
             if (m_TimeFill != null && m_TimeFill.transform.parent != null)
                 m_TimeFill.transform.parent.gameObject.SetActive(false);
             if (m_ResultsPanel != null)
+            {
+                CreateResultsBackdrop();
                 m_ResultsPanel.SetActive(false);
+            }
             foreach (var go in m_ShowWhilePlaying)
                 if (go != null)
                     go.SetActive(false);
@@ -91,6 +105,7 @@ namespace FurBrains
                 m_Runner.ended += OnEnded;
             if (m_ExitButton != null) m_ExitButton.onClick.AddListener(OnExit);
             if (m_OkButton != null) m_OkButton.onClick.AddListener(CloseResults);
+            if (m_PlayAgainButton != null) m_PlayAgainButton.onClick.AddListener(PlayAgain);
         }
 
         void OnDisable()
@@ -99,6 +114,7 @@ namespace FurBrains
                 m_Runner.ended -= OnEnded;
             if (m_ExitButton != null) m_ExitButton.onClick.RemoveListener(OnExit);
             if (m_OkButton != null) m_OkButton.onClick.RemoveListener(CloseResults);
+            if (m_PlayAgainButton != null) m_PlayAgainButton.onClick.RemoveListener(PlayAgain);
         }
 
         void Update()
@@ -137,12 +153,13 @@ namespace FurBrains
                 }
             }
 
-            if (m_CloseTime >= 0f && Time.time >= m_CloseTime)
-                CloseResults();
+            //if (m_CloseTime >= 0f && Time.time >= m_CloseTime)
+            //    CloseResults();
         }
 
         void OnEnded(MinigameDefinition definition, MinigameResult result, int coins)
         {
+            m_LastGame = definition;
             if (m_ResultsPanel == null)
                 return;
 
@@ -154,6 +171,7 @@ namespace FurBrains
                 m_CoinsText.text = $"+{coins}";
 
             m_ResultsPanel.SetActive(true);
+            m_ResultsBackdrop.SetActive(true);
             m_CloseTime = Time.time + m_AutoCloseSeconds;
         }
 
@@ -186,11 +204,50 @@ namespace FurBrains
                 m_Runner.Quit();
         }
 
+        void PlayAgain()
+        {
+            // Starting the game hides the results by itself (Update sees playing become true and calls CloseResults).
+            // Play returns false if it can't start (e.g. the FurBrain was removed); then just close the results.
+            if (m_Runner == null || !m_Runner.Play(m_LastGame))
+                CloseResults();
+        }
+
         void CloseResults()
         {
             m_CloseTime = -1f;
             if (m_ResultsPanel != null)
                 m_ResultsPanel.SetActive(false);
+            if (m_ResultsBackdrop != null)
+                m_ResultsBackdrop.SetActive(false);
+        }
+
+        /// <summary>
+        /// A full-screen Image just behind the results panel. UI is drawn in Hierarchy order and taps go to the
+        /// top-most Graphic with Raycast Target on, so this sits above everything earlier in the canvas (Main's
+        /// buttons, the menus) and swallows their taps, while the panel and its buttons, drawn after it, still work.
+        /// Made in code so the scene needs no extra setup.
+        /// </summary>
+        void CreateResultsBackdrop()
+        {
+            var parent = m_ResultsPanel.transform.parent;
+            m_ResultsBackdrop = new GameObject("Results Backdrop", typeof(RectTransform));
+            m_ResultsBackdrop.transform.SetParent(parent, false);
+            // Directly before the panel among its siblings, so it's drawn just under it.
+            m_ResultsBackdrop.transform.SetSiblingIndex(m_ResultsPanel.transform.GetSiblingIndex());
+
+            // Stretch over the whole parent. The parent (Minigame HUD) fills the screen, so this does too; the large
+            // margin makes sure it still covers everything if the parent is smaller.
+            var rect = (RectTransform)m_ResultsBackdrop.transform;
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.offsetMin = new Vector2(-5000f, -5000f);
+            rect.offsetMax = new Vector2(5000f, 5000f);
+
+            var image = m_ResultsBackdrop.AddComponent<Image>();
+            image.color = m_ResultsBackdropColor;
+            image.raycastTarget = true; // this is what blocks the taps
+
+            m_ResultsBackdrop.SetActive(false);
         }
     }
 }

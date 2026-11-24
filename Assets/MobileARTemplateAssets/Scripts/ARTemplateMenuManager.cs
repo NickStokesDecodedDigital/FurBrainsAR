@@ -210,6 +210,11 @@ namespace UnityEngine.XR.Templates.AR
             set => XRInputReaderUtility.SetInputProperty(ref m_DragCurrentPositionInput, value, this);
         }
 
+        [SerializeField]
+        [Tooltip("FurBrains: the main menu (the scene's \"Main\": background and the food, minigame, delete, options " +
+                 "and exit buttons). Shown only while a FurBrain is placed and no minigame is running.")]
+        GameObject m_MainMenu;
+
         FurBrains.FurBrainSummoner m_Summoner;
         FurBrains.MinigameRunner m_MinigameRunner;
         bool m_IsPointerOverUI;
@@ -288,6 +293,10 @@ namespace UnityEngine.XR.Templates.AR
                 HideMenu();
             if (m_CreateButton.gameObject.activeSelf != summoned)
                 m_CreateButton.gameObject.SetActive(summoned);
+            // The same rule for the whole main menu. This script sits on "UI", above Main, so it keeps running
+            // while Main is switched off.
+            if (m_MainMenu != null && m_MainMenu.activeSelf != summoned)
+                m_MainMenu.SetActive(summoned);
 
             // FurBrains: the surface dots are only needed to choose where to summon. Hide them once a FurBrain is
             // placed, and bring them back when it's deleted so the player can see where to place it again.
@@ -398,6 +407,9 @@ namespace UnityEngine.XR.Templates.AR
         /// Shows or hides the plane debug visuals.
         /// </summary>
         public void ShowHideDebugPlane() => SetPlanesVisible(!m_VisualizePlanes);
+
+        /// <summary>FurBrains: whether the AR surface visuals are currently shown (the Settings "Show floor dots" switch).</summary>
+        public bool planesVisible => m_VisualizePlanes;
 
         /// <summary>
         /// FurBrains: shows or hides the AR surface visuals (the same as the Options menu's "Visualize Surfaces"

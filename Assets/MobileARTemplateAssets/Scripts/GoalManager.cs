@@ -178,12 +178,17 @@ namespace UnityEngine.XR.Templates.AR
 
         const int k_NumberOfSurfacesTappedToCompleteGoal = 1;
 
+        // FurBrains: after a rescan, surfaces from before the AR reset can take a moment to disappear, so they
+        // aren't counted for this long after scanning starts.
+        const float k_ScanGraceSeconds = 1f;
+
         Queue<Goal> m_OnboardingGoals;
         Coroutine m_CurrentCoroutine;
         Goal m_CurrentGoal;
         bool m_AllGoalsFinished;
         int m_SurfacesTapped;
         int m_CurrentGoalIndex = 0;
+        float m_ScanStartTime;
 
         void Start()
         {
@@ -195,7 +200,16 @@ namespace UnityEngine.XR.Templates.AR
 
         void Update()
         {
-            if (Pointer.current != null && Pointer.current.press.wasPressedThisFrame && !m_AllGoalsFinished && (m_CurrentGoal.CurrentGoal == OnboardingGoals.FindSurfaces || m_CurrentGoal.CurrentGoal == OnboardingGoals.Hints || m_CurrentGoal.CurrentGoal == OnboardingGoals.Scale))
+            // FurBrains: the scan prompt stays until AR has found a surface, so "tap to place" only appears once
+            // there's something to tap on (no timer, no tap to skip).
+            if (!m_AllGoalsFinished && m_CurrentGoal.CurrentGoal == OnboardingGoals.FindSurfaces &&
+                Time.time - m_ScanStartTime > k_ScanGraceSeconds && HasFoundSurface())
+            {
+                CompleteGoal();
+                return;
+            }
+
+            if (Pointer.current != null && Pointer.current.press.wasPressedThisFrame && !m_AllGoalsFinished && (m_CurrentGoal.CurrentGoal == OnboardingGoals.Hints || m_CurrentGoal.CurrentGoal == OnboardingGoals.Scale))
             {
                 if (m_CurrentCoroutine != null)
                 {
@@ -230,11 +244,8 @@ namespace UnityEngine.XR.Templates.AR
 
         void PreprocessGoal()
         {
-            if (m_CurrentGoal.CurrentGoal == OnboardingGoals.FindSurfaces)
-            {
-                m_CurrentCoroutine = StartCoroutine(WaitUntilNextCard(5f));
-            }
-            else if (m_CurrentGoal.CurrentGoal == OnboardingGoals.Hints)
+            // FurBrains: FindSurfaces has no timer any more; Update completes it once a surface is found.
+            if (m_CurrentGoal.CurrentGoal == OnboardingGoals.Hints)
             {
                 m_CurrentCoroutine = StartCoroutine(WaitUntilNextCard(6f));
             }
@@ -264,6 +275,25 @@ namespace UnityEngine.XR.Templates.AR
                 m_CurrentCoroutine = null;
                 CompleteGoal();
             }
+        }
+
+        // FurBrains: true once AR has detected at least one surface (plane), i.e. the player can place a FurBrain.
+        bool HasFoundSurface()
+        {
+            var planeManager = m_MenuManager != null ? m_MenuManager.planeManager : null;
+            return planeManager != null && planeManager.trackables.count > 0;
+        }
+
+        /// <summary>
+        /// FurBrains: starts the onboarding again from "scan surfaces" (Settings → Scan again), even after it has
+        /// finished. StartCoaching on its own would skip the scan step once onboarding has been completed.
+        /// </summary>
+        public void RestartScanning()
+        {
+            if (m_CurrentGoal.CurrentGoal == OnboardingGoals.TapSurface && !m_AllGoalsFinished)
+                m_ObjectSpawner.objectSpawned -= OnObjectSpawned; // still waiting for the first tap: unhook it
+            m_AllGoalsFinished = false;
+            StartCoaching();
         }
 
         /// <summary>
@@ -311,10 +341,13 @@ namespace UnityEngine.XR.Templates.AR
             m_CurrentGoal = m_OnboardingGoals.Dequeue();
             m_AllGoalsFinished = false;
             m_CurrentGoalIndex = startingStep;
+            m_ScanStartTime = Time.time;
 
-            m_GreetingPrompt.SetActive(false);
-            m_OptionsButton.SetActive(true);
-            m_CreateButton.SetActive(true);
+            // FurBrains: these may be left empty (the greeting is skipped and can be deleted; the buttons' visibility
+            // is handled by ARTemplateMenuManager's Main Menu), so only touch the ones that are assigned.
+            if (m_GreetingPrompt != null) m_GreetingPrompt.SetActive(false);
+            if (m_OptionsButton != null) m_OptionsButton.SetActive(true);
+            if (m_CreateButton != null) m_CreateButton.SetActive(true);
             m_MenuManager.enabled = true;
 
             for (int i = startingStep; i < m_StepList.Count; i++)

@@ -18,7 +18,7 @@ namespace FurBrains.EditorTools
         const int k_MaxSize = 2048;
 
         // Bump this when changing the rules below: Unity then reimports affected textures automatically.
-        public override uint GetVersion() => 3;
+        public override uint GetVersion() => 4;
 
         void OnPreprocessTexture()
         {
@@ -50,6 +50,17 @@ namespace FurBrains.EditorTools
                 importer.spriteImportMode = SpriteImportMode.Single;
                 importer.alphaIsTransparency = true;
                 importer.mipmapEnabled = false;
+
+                // UI/Shapes/: round shapes for 9-slicing (Image Type = Sliced). A border of half the size minus one
+                // pixel on every side makes the corners the whole circle, so the sliced Image becomes a pill or a
+                // rounded rectangle at any size; the Image's Pixels Per Unit Multiplier sets the corner radius
+                // (radius = 32 / multiplier canvas units for the 64-pixel Shape_Round).
+                if (assetPath.StartsWith(k_Root + "UI/Shapes/"))
+                {
+                    importer.GetSourceTextureWidthAndHeight(out var width, out _);
+                    var border = width / 2 - 1;
+                    importer.spriteBorder = new UnityEngine.Vector4(border, border, border, border);
+                }
             }
 
             // Android: ASTC is the GPU-native compressed format on modern phones (~4-8x smaller in memory than RGBA32).

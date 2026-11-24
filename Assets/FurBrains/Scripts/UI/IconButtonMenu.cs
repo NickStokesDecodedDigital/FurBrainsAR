@@ -39,6 +39,11 @@ namespace FurBrains
                  "Empty = text only.")]
         Sprite m_LabelIcon;
 
+        [SerializeField, Range(0f, 0.5f)]
+        [Tooltip("Raises each button's bottom label (e.g. the price), as a fraction of the button's height. " +
+                 "0 = along the bottom edge.")]
+        float m_BottomLabelRaise = 0f;
+
         /// <summary>One built button and when it can be used.</summary>
         struct Entry
         {
@@ -192,8 +197,9 @@ namespace FurBrains
         void AddBottomLabel(Transform button, string text)
         {
             const float fontSize = 34f;
-            var anchorMin = new Vector2(0f, 0f);
-            var anchorMax = new Vector2(1f, 0.15f);
+            // The label fills a strip 15% of the button's height, starting m_BottomLabelRaise up from the bottom.
+            var anchorMin = new Vector2(0f, m_BottomLabelRaise);
+            var anchorMax = new Vector2(1f, m_BottomLabelRaise + 0.15f);
 
             if (m_LabelIcon == null)
             {
