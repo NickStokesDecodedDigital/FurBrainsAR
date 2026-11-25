@@ -44,6 +44,10 @@ namespace FurBrains
                  "0 = along the bottom edge.")]
         float m_BottomLabelRaise = 0f;
 
+        [SerializeField, Min(8f)]
+        [Tooltip("Font size of each button's bottom label (e.g. the price); the label icon scales with it.")]
+        float m_BottomLabelSize = 34f;
+
         /// <summary>One built button and when it can be used.</summary>
         struct Entry
         {
@@ -54,10 +58,13 @@ namespace FurBrains
 
         readonly List<Entry> m_Entries = new();
         float m_FittedWidth = -1f; // parent width the panel was last fitted to
+        GridLayoutGroup m_Grid;    // optional: lays the buttons out in rows and columns (the minigame cards)
+        Vector2 m_GridFit = -Vector2.one;  // scroll area width and button count the cells were last sized for
 
         protected virtual void Start()
         {
             ApplyScale();
+            m_Grid = GetComponent<GridLayoutGroup>();
             if (m_ButtonTemplate == null)
                 m_ButtonTemplate = GetComponentInChildren<Button>(true);
             if (m_ButtonTemplate == null)
@@ -107,8 +114,15 @@ namespace FurBrains
             var hasBottom = !string.IsNullOrEmpty(bottomLabel);
             if (hasBottom)
                 AddBottomLabel(button.transform, bottomLabel);
-            // The item's name, if there's no icon yet: above the bottom label, or centred when there isn't one.
-            if (icon == null)
+
+            // If the template button has a text child called "Name" (the minigame cards do), it shows the item's
+            // name wherever it was placed in the Inspector. Otherwise the name is only added when there's no icon:
+            // above the bottom label, or centred when there isn't one.
+            var nameTransform = button.transform.Find("Name");
+            var nameText = nameTransform != null ? nameTransform.GetComponent<TMP_Text>() : null;
+            if (nameText != null)
+                nameText.text = displayName;
+            else if (icon == null)
                 AddLabel(button.transform, "Name", displayName, 28f, new Vector2(0f, hasBottom ? 0.35f : 0f), Vector2.one);
 
             m_Entries.Add(new Entry
@@ -125,6 +139,7 @@ namespace FurBrains
             // Re-fit the panel if the screen width changed (e.g. the phone was rotated).
             if (m_MenuPanel != null && m_MenuPanel.parent is RectTransform parent && parent.rect.width != m_FittedWidth)
                 ApplyScale();
+            FitGrid();
 
             // A handful of buttons, so simply refresh every frame rather than tracking each reason separately.
             foreach (var entry in m_Entries)
@@ -186,6 +201,46 @@ namespace FurBrains
         }
 
         /// <summary>
+        /// Sizes the buttons of an optional GridLayoutGroup on this object so they fill the scroll area's width. The
+        /// size comes from the grid's <b>Padding</b> and <b>Spacing</b> (set in the Inspector): whatever width is left
+        /// after them is shared equally: (width − left/right padding − gaps) ÷ buttons across. A grid only takes a
+        /// fixed cell size and phones differ in width, so this does that sum for it.
+        /// <list type="bullet">
+        /// <item>Fixed Column Count (the minigame cards, 2 columns): the columns fill the width; the cell height stays
+        /// as set in the Inspector.</item>
+        /// <item>Fixed Row Count (the food cards, 1 row): all the cards in the row fill the width and are square, so
+        /// more padding or spacing makes them smaller (and more foods would make them smaller too).</item>
+        /// </list>
+        /// The scroll area's height doesn't affect the size. Runs again when the width or the number of buttons changes.
+        /// </summary>
+        void FitGrid()
+        {
+            if (m_Grid == null || m_Grid.constraint == GridLayoutGroup.Constraint.Flexible)
+                return;
+            if (transform.parent is not RectTransform area) // the scroll view's Viewport
+                return;
+            var width = area.rect.width;
+            var items = m_Entries.Count;
+            var fit = new Vector2(width, items);
+            if (fit == m_GridFit || width <= 0f || items == 0)
+                return;
+            m_GridFit = fit;
+
+            var count = Mathf.Max(1, m_Grid.constraintCount);
+            if (m_Grid.constraint == GridLayoutGroup.Constraint.FixedColumnCount)
+            {
+                var cell = (width - m_Grid.padding.horizontal - m_Grid.spacing.x * (count - 1)) / count;
+                m_Grid.cellSize = new Vector2(cell, m_Grid.cellSize.y);
+            }
+            else
+            {
+                var across = Mathf.CeilToInt(items / (float)count); // cards side by side in a row
+                var side = (width - m_Grid.padding.horizontal - m_Grid.spacing.x * (across - 1)) / across;
+                m_Grid.cellSize = new Vector2(side, side);
+            }
+        }
+
+        /// <summary>
         /// The bottom label (e.g. a price), with <see cref="m_LabelIcon"/> just to its left when one is set.
         /// </summary>
         /// <remarks>
@@ -196,23 +251,24 @@ namespace FurBrains
         /// </remarks>
         void AddBottomLabel(Transform button, string text)
         {
-            const float fontSize = 34f;
-            // The label fills a strip 15% of the button's height, starting m_BottomLabelRaise up from the bottom.
-            var anchorMin = new Vector2(0f, m_BottomLabelRaise);
-            var anchorMax = new Vector2(1f, m_BottomLabelRaise + 0.15f);
+            var fontSize = m_BottomLabelSize;
 
+            // The label is a strip across the button, m_BottomLabelRaise (a fraction of the button's height) up from
+            // the bottom. Its height follows the font size, so a bigger label gets a taller strip: the row's layout
+            // group never makes the coin taller than the strip it sits in.
+            var stripHeight = fontSize * 1.2f;
+            RectTransform strip;
             if (m_LabelIcon == null)
             {
-                AddLabel(button, "Label", text, fontSize, anchorMin, anchorMax);
+                strip = AddLabel(button, "Label", text, fontSize, Vector2.zero, Vector2.one).rectTransform;
+                PlaceStrip(strip, stripHeight);
                 return;
             }
 
             var row = new GameObject("Label", typeof(RectTransform));
             row.transform.SetParent(button, false);
-            var rowRect = (RectTransform)row.transform;
-            rowRect.anchorMin = anchorMin;
-            rowRect.anchorMax = anchorMax;
-            rowRect.offsetMin = rowRect.offsetMax = Vector2.zero;
+            strip = (RectTransform)row.transform;
+            PlaceStrip(strip, stripHeight);
 
             var layout = row.AddComponent<HorizontalLayoutGroup>();
             layout.childAlignment = TextAnchor.MiddleCenter;
@@ -234,6 +290,16 @@ namespace FurBrains
 
             var label = AddLabel(row.transform, "Label Text", text, fontSize, Vector2.zero, Vector2.one);
             label.textWrappingMode = TextWrappingModes.NoWrap; // keep the number on one line so it reports its real width
+        }
+
+        // Anchors the strip to the full width at m_BottomLabelRaise up the button, growing upward to the given height.
+        void PlaceStrip(RectTransform strip, float height)
+        {
+            strip.anchorMin = new Vector2(0f, m_BottomLabelRaise);
+            strip.anchorMax = new Vector2(1f, m_BottomLabelRaise);
+            strip.pivot = new Vector2(0.5f, 0f);
+            strip.anchoredPosition = Vector2.zero;
+            strip.sizeDelta = new Vector2(0f, height);
         }
 
         static TextMeshProUGUI AddLabel(Transform parent, string name, string text, float size, Vector2 anchorMin,

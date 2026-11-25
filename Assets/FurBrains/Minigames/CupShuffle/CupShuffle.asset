@@ -13,7 +13,8 @@ MonoBehaviour:
   m_Name: CupShuffle
   m_EditorClassIdentifier: Assembly-CSharp::FurBrains.MinigameDefinition
   m_DisplayName: Cup Shuffle
-  m_Icon: {fileID: 0}
+  m_Icon: {fileID: 21300000, guid: 8a5e47b2a732b8a4e87e02eb39a18f84, type: 3}
+  m_CardColor: {r: 0.4392157, g: 0.1882353, b: 0.8784314, a: 1}
   m_Prefab: {fileID: 3029129723626771937, guid: 292711be9a93d8444abcee8a9be3d913, type: 3}
   m_CoinsPerPoint: 6
   m_MinimumCoins: 2

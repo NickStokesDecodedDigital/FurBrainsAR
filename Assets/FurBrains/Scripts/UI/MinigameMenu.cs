@@ -39,8 +39,13 @@ namespace FurBrains
             {
                 if (game == null)
                     continue;
-                AddButton($"Minigame ({game.name})", game.icon, game.displayName, null,
+                var button = AddButton($"Minigame ({game.name})", game.icon, game.displayName, null,
                     () => StartGame(game), () => m_Runner != null && m_Runner.canPlay);
+
+                // Each game's card has its own colour, on the card's own background Image. (Not button.image: that's
+                // the Button's Target Graphic, which in the template was the icon.)
+                if (game.cardColor.a > 0f && button.TryGetComponent<UnityEngine.UI.Image>(out var card))
+                    card.color = game.cardColor;
             }
         }
 

@@ -13,7 +13,8 @@ MonoBehaviour:
   m_Name: CopyZiara
   m_EditorClassIdentifier: Assembly-CSharp::FurBrains.MinigameDefinition
   m_DisplayName: Copy Ziara
-  m_Icon: {fileID: 0}
+  m_Icon: {fileID: 21300000, guid: 2e1bce0b3c4628848bab30d589db22be, type: 3}
+  m_CardColor: {r: 0.7372549, g: 0.1254902, b: 0.40784314, a: 1}
   m_Prefab: {fileID: 1706809368103726610, guid: 36d3d778b5ca16c4eac33bee59c5cb59, type: 3}
   m_CoinsPerPoint: 4
   m_MinimumCoins: 2

@@ -22,6 +22,11 @@ namespace FurBrains
         Sprite m_Icon;
 
         [SerializeField]
+        [Tooltip("Background colour of the game's card in the minigame menu. Fully transparent = keep the template " +
+                 "button's colour.")]
+        Color m_CardColor = Color.clear;
+
+        [SerializeField]
         [Tooltip("Prefab created when the game starts. Its root must have a Minigame component.")]
         Minigame m_Prefab;
 
@@ -46,6 +51,9 @@ namespace FurBrains
 
         /// <summary>Picture shown on the menu button.</summary>
         public Sprite icon => m_Icon;
+
+        /// <summary>Background colour of the game's menu card (alpha 0 = use the template's colour).</summary>
+        public Color cardColor => m_CardColor;
 
         /// <summary>Prefab created when the game starts.</summary>
         public Minigame prefab => m_Prefab;

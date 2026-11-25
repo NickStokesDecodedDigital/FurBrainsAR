@@ -271,8 +271,11 @@ namespace UnityEngine.XR.Templates.AR
 
             HideMenu();
 
-            m_DebugMenuSlider.value = m_ShowDebugMenu ? 1 : 0;
-            m_DebugPlaneSlider.value = m_VisualizePlanes ? 1 : 0;
+            // FurBrains: the template's Options Modal (which held these sliders) may have been deleted.
+            if (m_DebugMenuSlider != null)
+                m_DebugMenuSlider.value = m_ShowDebugMenu ? 1 : 0;
+            if (m_DebugPlaneSlider != null)
+                m_DebugPlaneSlider.value = m_VisualizePlanes ? 1 : 0;
         }
 
         /// <summary>
@@ -429,7 +432,8 @@ namespace UnityEngine.XR.Templates.AR
         public void ShowHideDebugMenu()
         {
             m_ShowDebugMenu = !m_ShowDebugMenu;
-            m_DebugMenuSlider.value = m_ShowDebugMenu ? 1 : 0;
+            if (m_DebugMenuSlider != null)
+                m_DebugMenuSlider.value = m_ShowDebugMenu ? 1 : 0;
 
             // There is a bug in the ARDebugMenu that when the debug menu is enabled, it will always
             // turn off the line visualizers regardless of previous state. This means that the toggle

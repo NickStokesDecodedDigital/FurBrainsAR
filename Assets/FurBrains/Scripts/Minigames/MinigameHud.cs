@@ -39,13 +39,31 @@ namespace FurBrains
         GameObject m_ResultsPanel;
 
         [SerializeField]
-        [Tooltip("Colour of the full-screen backdrop behind the results panel. It dims the game and catches taps, so " +
-                 "the other buttons can't be pressed while the results are up. Alpha 0 = invisible but still blocking.")]
+        [Tooltip("Full-screen Image just above the Results Panel in the Hierarchy (Raycast Target on). Shown and hidden " +
+                 "with the results; it dims the game and catches taps, so the other buttons can't be pressed meanwhile. " +
+                 "If left empty, one is made in code with the colour below.")]
+        GameObject m_ResultsBackdrop;
+
+        [SerializeField]
+        [Tooltip("Colour of the backdrop made in code when Results Backdrop is empty. Alpha 0 = invisible but still " +
+                 "blocking. Not used when you assign your own backdrop (set its Image colour instead).")]
         Color m_ResultsBackdropColor = new Color(0f, 0f, 0f, 0.4f);
 
         [SerializeField]
-        [Tooltip("Results: the score, or win / good try.")]
+        [Tooltip("Results: \"Great Job!\" for a win or any points, otherwise \"Nice try!\".")]
         TMP_Text m_ResultText;
+
+        [SerializeField]
+        [Tooltip("Results: \"Score: N\". Hidden after a won-or-lost game, which has no score.")]
+        TMP_Text m_ScoreText;
+
+        [SerializeField]
+        [Tooltip("Results: how much the Play meter went up during the game, \"Play Meter: +N%!\".")]
+        TMP_Text m_PlayMeterText;
+
+        [SerializeField]
+        [Tooltip("Found in the scene automatically if left empty. Used for the Play meter gain.")]
+        FurBrainNeeds m_Needs;
 
         [SerializeField]
         [Tooltip("Results: coins earned.")]
@@ -76,12 +94,14 @@ namespace FurBrains
         bool m_WasPlaying;
         int m_ShownScore = int.MinValue;
         MinigameDefinition m_LastGame; // the game the results panel is showing, for Play Again
-        GameObject m_ResultsBackdrop;  // made in Awake, shown and hidden together with the results panel
+        float m_PlayAtStart;           // Play meter (0..1) when the current game started
 
         void Awake()
         {
             if (m_Runner == null)
                 m_Runner = FindAnyObjectByType<MinigameRunner>();
+            if (m_Needs == null)
+                m_Needs = FindAnyObjectByType<FurBrainNeeds>();
             // Start hidden (not via SetPlaying, which would also re-show the Hide While Playing objects).
             if (m_ExitButton != null) m_ExitButton.gameObject.SetActive(false);
             SetLiveScoreVisible(false);
@@ -89,7 +109,10 @@ namespace FurBrains
                 m_TimeFill.transform.parent.gameObject.SetActive(false);
             if (m_ResultsPanel != null)
             {
-                CreateResultsBackdrop();
+                // Use the backdrop placed in the scene if there is one; otherwise make one.
+                if (m_ResultsBackdrop == null)
+                    CreateResultsBackdrop();
+                m_ResultsBackdrop.SetActive(false);
                 m_ResultsPanel.SetActive(false);
             }
             foreach (var go in m_ShowWhilePlaying)
@@ -126,7 +149,12 @@ namespace FurBrains
             {
                 m_WasPlaying = playing;
                 if (playing)
+                {
                     CloseResults();
+                    // Remember the Play meter so the results can show how much this game added.
+                    if (m_Needs != null)
+                        m_PlayAtStart = m_Needs.playNormalized;
+                }
                 SetPlaying(playing);
                 SetLiveScoreVisible(playing && game.resultKind == MinigameResultKind.Score);
                 m_ShownScore = int.MinValue;
@@ -163,15 +191,32 @@ namespace FurBrains
             if (m_ResultsPanel == null)
                 return;
 
+            // isGood = a win or any points (the same test that makes Ziara celebrate).
             if (m_ResultText != null)
-                m_ResultText.text = result.kind == MinigameResultKind.Score
-                    ? result.score.ToString()
-                    : result.won ? "You win!" : "Good try!"; // placeholder until there are win / try-again icons
+                m_ResultText.text = result.isGood ? "Great Job!" : "Nice try!";
+
+            // Only score games have a score; a won-or-lost game hides the line.
+            if (m_ScoreText != null)
+            {
+                var hasScore = result.kind == MinigameResultKind.Score;
+                m_ScoreText.gameObject.SetActive(hasScore);
+                if (hasScore)
+                    m_ScoreText.text = $"Score: {result.score}";
+            }
+
+            // Whole percent of the meter gained since the game started (rounded down, never below 0).
+            if (m_PlayMeterText != null && m_Needs != null)
+            {
+                var gain = Mathf.Max(0, Mathf.FloorToInt((m_Needs.playNormalized - m_PlayAtStart) * 100f + 0.001f));
+                m_PlayMeterText.text = $"Play Meter: +{gain}%!";
+            }
+
             if (m_CoinsText != null)
                 m_CoinsText.text = $"+{coins}";
 
             m_ResultsPanel.SetActive(true);
-            m_ResultsBackdrop.SetActive(true);
+            if (m_ResultsBackdrop != null)
+                m_ResultsBackdrop.SetActive(true);
             m_CloseTime = Time.time + m_AutoCloseSeconds;
         }
 
@@ -225,7 +270,7 @@ namespace FurBrains
         /// A full-screen Image just behind the results panel. UI is drawn in Hierarchy order and taps go to the
         /// top-most Graphic with Raycast Target on, so this sits above everything earlier in the canvas (Main's
         /// buttons, the menus) and swallows their taps, while the panel and its buttons, drawn after it, still work.
-        /// Made in code so the scene needs no extra setup.
+        /// Only used when no backdrop is assigned in the Inspector, so older scenes need no extra setup.
         /// </summary>
         void CreateResultsBackdrop()
         {

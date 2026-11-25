@@ -13,7 +13,8 @@ MonoBehaviour:
   m_Name: BubblePop
   m_EditorClassIdentifier: Assembly-CSharp::FurBrains.MinigameDefinition
   m_DisplayName: Bubble Pop
-  m_Icon: {fileID: 0}
+  m_Icon: {fileID: 21300000, guid: dc8f8f6052752104fb5359ec0bbbba10, type: 3}
+  m_CardColor: {r: 0.1764706, g: 0.47843137, b: 0.43137255, a: 1}
   m_Prefab: {fileID: 171090800209583369, guid: d445f678af20bb449ac4cdf5b4fab01d, type: 3}
   m_CoinsPerPoint: 0.25
   m_MinimumCoins: 2

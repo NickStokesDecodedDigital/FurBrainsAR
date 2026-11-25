@@ -42,6 +42,15 @@ namespace FurBrains.EditorTools
                 return;
             }
 
+            // After Restyle Minigame Menu As Cards the two menus are deliberately different; copying would undo it.
+            var minigameGrid = minigame.GetComponentInChildren<GridLayoutGroup>(true);
+            if (minigameGrid != null)
+            {
+                Debug.LogWarning("[FurBrains] The minigame menu uses the card layout now, so the food menu's look isn't " +
+                                 "copied onto it.");
+                return;
+            }
+
             Undo.SetCurrentGroupName("Copy Food Menu Look");
 
             // The open/close animation (e.g. the FurBrainsMenu controller that hides the panel fully).
