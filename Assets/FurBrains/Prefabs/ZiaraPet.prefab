@@ -4883,6 +4883,7 @@ GameObject:
   - component: {fileID: 3101793148715764895}
   - component: {fileID: 1660271106669301248}
   - component: {fileID: 447233206007820018}
+  - component: {fileID: 1071669500982750291}
   m_Layer: 0
   m_Name: ZiaraPet
   m_TagString: Untagged
@@ -5185,6 +5186,51 @@ AudioSource:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
+--- !u!114 &1071669500982750291
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1596680960204291625}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5befaa6a123f40d4886ce10e5efbb1a5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FurBrains.FurBrainSpeech
+  m_Face: {fileID: 0}
+  m_MaxOpen: 0.8
+  m_LoudLevel: 0.15
+  m_QuietLevel: 0.01
+  m_OpenSpeed: 25
+  m_CloseSpeed: 12
+  m_DetectVowels: 1
+  m_MouthShape: A
+  m_Vowels:
+  - shape: A
+    f1: 850
+    f2: 1300
+  - shape: I
+    f1: 330
+    f2: 2700
+  - shape: U
+    f1: 380
+    f2: 1000
+  - shape: E
+    f1: 600
+    f2: 2300
+  - shape: O
+    f1: 550
+    f2: 950
+  m_F1Tolerance: 200
+  m_F2Tolerance: 500
+  m_VowelChangeSpeed: 12
+  m_SmoothingHz: 150
+  m_SpatialBlend: 0
+  m_TestLine: {fileID: 8300000, guid: 35a1e0d635015684789222371d8db0b2, type: 3}
+  m_LiveF1: 0
+  m_LiveF2: 0
+  m_LiveVowel: 
 --- !u!1001 &4884615469490806584
 PrefabInstance:
   m_ObjectHideFlags: 0

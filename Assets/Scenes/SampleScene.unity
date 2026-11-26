@@ -14468,7 +14468,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ace4876bb70d6cc48933fb38f68508be, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FurBrains.FurBrainFaceDemo
-  m_AutoCycle: 0
+  m_AutoCycle: 1
   m_SecondsPerShape: 2
   m_Weight: 1
   m_Skip: []
