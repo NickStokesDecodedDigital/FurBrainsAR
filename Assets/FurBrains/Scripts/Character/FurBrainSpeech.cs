@@ -6,55 +6,62 @@ namespace FurBrains
 {
     /// <summary>
     /// Makes the FurBrain speak a voice line and moves her mouth with it: loudness sets how open the mouth is,
-    /// and a simple vowel detector picks which mouth shape (A I U E O) to use.
+    /// and a vowel detector picks which mouth shape (A I U E O) to use.
     /// </summary>
     /// <remarks>
     /// Call <see cref="Say"/> with a clip (or an Audio Random Container). The line plays on this component's own
     /// AudioSource, so what's measured each frame is the voice only, not crumbs or summon sounds.
     ///
-    /// <b>How open:</b> every frame, read the last few milliseconds of audio the source just played
-    /// (<c>GetOutputData</c>), take its loudness (RMS: the square root of the average squared sample) and map it to
-    /// 0..1. Loud = open, quiet = closed.
+    /// <b>How open:</b> every frame, read the last ~20 ms of audio the source just played (<c>GetOutputData</c>),
+    /// take its loudness (RMS: the square root of the average squared sample) and map it to 0..1.
     ///
     /// <b>Which vowel:</b> every vowel makes the throat and mouth resonate at two main frequencies, called formants.
-    /// F1 (roughly 250–1000 Hz) rises the more open the mouth is ("ah" high, "ee"/"oo" low). F2 (roughly 800–3000 Hz)
-    /// rises the further forward the tongue is ("ee" high, "oo"/"oh" low). So:
+    /// F1 rises the more open the mouth is ("ah" high, "ee"/"oo" low); F2 rises the further forward the tongue is
+    /// ("ee" high, "oh" low). The formants are found with <b>LPC</b> (linear predictive coding), the standard method
+    /// in speech tools:
     /// <list type="number">
-    /// <item><c>GetSpectrumData</c> splits the audio into 1024 frequency bins (a Fourier transform, done by Unity).</item>
-    /// <item>The spectrum is smoothed (averaged over neighbouring bins) so the voice's individual harmonics blur into
-    /// broad hills; the formants are the tops of those hills.</item>
-    /// <item>F1 = the highest point between 250 and 1000 Hz; F2 = the highest point above F1, up to 3000 Hz.</item>
-    /// <item>Each vowel in <c>Vowels</c> has a typical F1/F2. The closer the measured pair is to a vowel's, the more
-    /// of that vowel's shape is used (weights always add up to 1, so it blends between neighbours).</item>
+    /// <item>Reduce the audio to ~11 kHz (averaging groups of samples): speech formants are all below 4 kHz.</item>
+    /// <item>LPC finds the simple filter (10 numbers) that best predicts each sample from the 10 before it. That
+    /// filter has the same resonances as the speaker's mouth and throat, but not the voice's pitch, so its frequency
+    /// curve is a clean, smooth outline of the vowel: one hill per formant.</item>
+    /// <item>F1 = the first hill above 250 Hz; F2 = the next hill.</item>
+    /// <item>Each entry in <c>Vowels</c> has a typical F1/F2. The closer the measured pair is to an entry's, the
+    /// more of its shape is used (shares always add up to 1, so it blends between neighbours).</item>
     /// </list>
-    /// It's deliberately simple: it gets the broad differences (open "ah", wide "ee", round "oo") and may mix up
-    /// neighbours like E/I or O/U. Tune the vowel frequencies with the live readout at the bottom of the Inspector.
+    /// (The first version smoothed Unity's FFT spectrum and took its highest points instead. With a high voice, it
+    /// often caught the wrong hill and mixed up oo/eh/oh with ee.)
     ///
     /// The mouth goes through FurBrainFace like every other expression, so it adds on top of the mood (e.g. Empowered)
     /// instead of fighting it, and it's applied after the Animator.
     /// </remarks>
     public class FurBrainSpeech : MonoBehaviour
     {
-        /// <summary>One vowel: its blend shape and the formant frequencies it typically has.</summary>
+        /// <summary>One vowel sound: the blend shape to use and the formant frequencies it typically has.</summary>
         [Serializable]
         public class Vowel
         {
-            [Tooltip("Blend shape for this vowel.")]
+            [Tooltip("Blend shape for this vowel sound. Several sounds may share one (e.g. \"oo\" and \"oh\" both O, " +
+                     "because Ziara's own U shape is flat rather than round).")]
             public string shape;
 
-            [Tooltip("Typical first formant in Hz. Higher = more open mouth (\"ah\" ~850, \"ee\" ~330).")]
+            [Tooltip("Typical first formant in Hz. Higher = more open mouth (\"ah\" ~900, \"ee\" ~400).")]
             public float f1;
 
-            [Tooltip("Typical second formant in Hz. Higher = tongue further forward (\"ee\" ~2700, \"oo\" ~1000).")]
+            [Tooltip("Typical second formant in Hz. Higher = tongue further forward (\"ee\" ~2900, \"oh\" ~1100).")]
             public float f2;
+
+            [Tooltip("Multiplies this vowel's shape weight. Above 1 for shapes that only read clearly near full " +
+                     "strength (e.g. O, whose rounding is subtle at half weight). The total is capped at 1.")]
+            public float strength = 1f;
 
             public Vowel() { }
 
-            public Vowel(string shape, float f1, float f2)
+            public Vowel(string shape, float f1, float f2, float strength = 1f)
             {
                 this.shape = shape;
                 this.f1 = f1;
                 this.f2 = f2;
+                this.strength = strength;
             }
         }
 
@@ -95,33 +102,37 @@ namespace FurBrains
         string m_MouthShape = "A";
 
         [SerializeField]
-        [Tooltip("Ziara's vowel shapes and their typical formants (a young woman's voice). Adjust F1/F2 to match " +
-                 "what the live readout shows while she says that vowel.")]
+        [Tooltip("Vowel sounds and their typical formants, measured from the Piper test voice (en_US-amy) with this " +
+                 "detector: ah, ee, oo, eh, oh. Retune for a new voice: play a line full of one vowel and copy " +
+                 "what the live readout shows into that entry.")]
         Vowel[] m_Vowels =
         {
-            new Vowel("A", 850f, 1300f), // "ah"
-            new Vowel("I", 330f, 2700f), // "ee"
-            new Vowel("U", 380f, 1000f), // "oo"
-            new Vowel("E", 600f, 2300f), // "eh"
-            new Vowel("O", 550f, 950f),  // "oh"
+            new Vowel("A", 910f, 1400f), // "ah"  car, father
+            new Vowel("I", 390f, 2900f), // "ee"  see, tree
+            new Vowel("O", 390f, 2000f, 1.25f), // "oo" food, moon (American "oo" is far forward, hence the high F2)
+            new Vowel("E", 690f, 2030f),        // "eh" bed, red
+            new Vowel("O", 570f, 1120f, 1.25f), // "oh" door, more (1.25 × Max Open 0.8 = full O when loud)
+            new Vowel("O", 740f, 1680f, 1.25f), // start of "oh" in go, no: American "oh" begins here, glides to the one above
         };
 
         [SerializeField]
         [Tooltip("How far (Hz) F1 may be from a vowel's and still count as a close match. Bigger = softer blending.")]
-        float m_F1Tolerance = 200f;
+        float m_F1Tolerance = 150f;
 
         [SerializeField]
         [Tooltip("How far (Hz) F2 may be from a vowel's and still count as a close match. Bigger = softer blending.")]
-        float m_F2Tolerance = 500f;
+        float m_F2Tolerance = 400f;
+
+        [SerializeField]
+        [Tooltip("Winner takes more: each shape's share is raised to this power before the shares are rescaled to " +
+                 "add up to 1. 1 = plain blend; 2–3 = the leading shape gets most of the mouth, so neighbours (a bit " +
+                 "of A or E in an O) don't water it down. Never changes which shape leads.")]
+        [Range(1f, 5f)]
+        float m_WinnerFocus = 3f;
 
         [SerializeField]
         [Tooltip("How quickly the mouth changes from one vowel shape to the next (per second). Lower = less flicker.")]
         float m_VowelChangeSpeed = 12f;
-
-        [SerializeField]
-        [Tooltip("How widely the spectrum is averaged (Hz) before looking for formants, to blur the voice's " +
-                 "individual harmonics. Raise it if F1/F2 jump around a lot.")]
-        float m_SmoothingHz = 150f;
 
         [Header("Audio")]
         [SerializeField]
@@ -135,26 +146,38 @@ namespace FurBrains
         AudioResource m_TestLine;
 
         [SerializeField]
-        [Tooltip("Written by the script while she talks (Play mode): the measured formants and the strongest vowel. " +
-                 "Use them to tune the Vowels list. Editing them does nothing.")]
+        [Tooltip("Written by the script while she talks (Play mode): the measured formants. Use them to tune the " +
+                 "Vowels list. Editing them does nothing.")]
         float m_LiveF1, m_LiveF2;
 
         [SerializeField]
-        [Tooltip("Written by the script: the vowel currently weighted most.")]
+        [Tooltip("Written by the script: the Vowels entry currently weighted most (its number in the list and shape).")]
         string m_LiveVowel;
 
-        // Formant search ranges (Hz). F2 must be at least k_MinGap above F1, so the two peaks are different hills.
-        const float k_MinF1 = 250f, k_MaxF1 = 1000f;
-        const float k_MinF2 = 800f, k_MaxF2 = 3000f;
-        const float k_MinGap = 300f;
+        const int k_LpcOrder = 10;            // filter length: 10 is right for speech at ~11 kHz (2 per formant + 2)
+        const int k_FrameLength = 256;        // samples analysed after reducing to ~11 kHz: about 23 ms
+        const float k_AnalysisRate = 11025f;  // the rate the audio is reduced to
+        const float k_PreEmphasis = 0.95f;    // see DetectVowel step 2
+        const float k_MinF1 = 250f;           // hills below this are the voice's pitch, not a formant
+        const float k_MinF2 = 700f;
+        const float k_MinGap = 150f;          // F2 must be at least this far above F1
+        const float k_MaxHz = 3600f, k_StepHz = 10f; // the filter's curve is checked every 10 Hz up to here
 
         AudioSource m_Voice;
-        readonly float[] m_Samples = new float[256];   // about 5 ms of audio at 48 kHz; reused every frame (no garbage)
-        readonly float[] m_Spectrum = new float[1024]; // GetSpectrumData needs a power of two
-        readonly float[] m_Smoothed = new float[1024];
-        float m_Open;                                  // current mouth opening, 0..1
-        float[] m_VowelTarget;                         // wanted share of each vowel (adds up to 1)
-        float[] m_VowelWeight;                         // current share, easing toward the target
+        float[] m_Raw;                        // ~21 ms of audio at the output rate (e.g. 1024 samples at 48 kHz)
+        readonly float[] m_Frame = new float[k_FrameLength];
+        readonly float[] m_Autocorrelation = new float[k_LpcOrder + 1];
+        readonly float[] m_Lpc = new float[k_LpcOrder + 1];
+        readonly float[] m_LpcTemp = new float[k_LpcOrder + 1];
+        int m_Decimation;                     // how many output samples are averaged into one analysis sample
+        float m_FrameRate;                    // sample rate of m_Frame
+
+        float m_Open;                         // current mouth opening, 0..1
+        float[] m_VowelTarget;                // wanted share of each vowel (adds up to 1)
+        float[] m_VowelWeight;                // current share, easing toward the target
+        float[] m_ShapeShare;                 // per shape, stored at the first entry using it (see ApplyMouth)
+        float[] m_ShapeStrength;
+        float[] m_ShapeFocused;
 
         /// <summary>True while a line is playing.</summary>
         public bool isSpeaking => m_Voice != null && m_Voice.isPlaying;
@@ -172,7 +195,12 @@ namespace FurBrains
             m_Voice.playOnAwake = false;
             m_Voice.spatialBlend = m_SpatialBlend;
 
-            SayTestLine();
+            // Unity mixes at the device's rate (usually 48 kHz). Averaging every m_Decimation samples gives ~11 kHz.
+            m_Decimation = Mathf.Max(1, Mathf.RoundToInt(AudioSettings.outputSampleRate / k_AnalysisRate));
+            m_FrameRate = (float)AudioSettings.outputSampleRate / m_Decimation;
+            m_Raw = new float[k_FrameLength * m_Decimation];
+
+            //SayTestLine();
         }
 
         /// <summary>
@@ -202,7 +230,12 @@ namespace FurBrains
         {
             MakeVowelArrays();
 
-            var loudness = isSpeaking ? MouthFromLoudness() : 0f;
+            var loudness = 0f;
+            if (isSpeaking)
+            {
+                m_Voice.GetOutputData(m_Raw, 0); // channel 0 (left, or the only channel for mono voice files)
+                loudness = MouthFromLoudness();
+            }
 
             // Only look for a vowel while there's sound; in silence the mouth closes keeping its last shape.
             if (m_DetectVowels && loudness > 0f)
@@ -222,8 +255,10 @@ namespace FurBrains
                 ApplyMouth();
         }
 
-        // Final weight of each shape = how open × that vowel's share. They add up, like all blend shapes.
-        // SetShapeImmediate skips FurBrainFace's own easing (too slow for syllables); ours above replaces it.
+        // Sets each mouth shape's weight. Several Vowels entries can use the same shape (oo, oh and the start of oh
+        // are all O), so their shares are first added up per shape. Each shape's total is kept at the first entry
+        // that uses it (its "group leader"), so no extra list of shape names is needed.
+        // SetShapeImmediate skips FurBrainFace's own easing (too slow for syllables); ours replaces it.
         void ApplyMouth()
         {
             var open = m_Open * m_MaxOpen;
@@ -232,52 +267,103 @@ namespace FurBrains
                 m_Face.SetShapeImmediate(m_MouthShape, open);
                 return;
             }
+
+            // 1. Each shape's total share, and its share-weighted strength.
+            Array.Clear(m_ShapeShare, 0, m_ShapeShare.Length);
+            Array.Clear(m_ShapeStrength, 0, m_ShapeStrength.Length);
             for (var i = 0; i < m_Vowels.Length; i++)
-                m_Face.SetShapeImmediate(m_Vowels[i].shape, open * m_VowelWeight[i]);
+            {
+                var leader = GroupLeader(i);
+                m_ShapeShare[leader] += m_VowelWeight[i];
+                m_ShapeStrength[leader] += m_VowelWeight[i] * m_Vowels[i].strength;
+            }
+
+            // 2. Winner takes more: raise every shape's share to the power Winner Focus, then rescale so they add
+            //    up to 1 again. E.g. O 0.6 / E 0.3 / A 0.1 cubed and rescaled becomes O 0.88 / E 0.11 / A 0.004:
+            //    the order stays the same, but the leader dominates.
+            var total = 0f;
+            for (var i = 0; i < m_Vowels.Length; i++)
+            {
+                m_ShapeFocused[i] = GroupLeader(i) == i ? Mathf.Pow(m_ShapeShare[i], m_WinnerFocus) : 0f;
+                total += m_ShapeFocused[i];
+            }
+
+            // 3. Weight = how open × focused share × strength (the strengths of the entries that made up the share,
+            //    averaged by how much each contributed). FurBrainFace clamps the result to 0..1.
+            for (var i = 0; i < m_Vowels.Length; i++)
+            {
+                if (GroupLeader(i) != i)
+                    continue;
+                var focused = total > 0f ? m_ShapeFocused[i] / total : 0f;
+                var strength = m_ShapeShare[i] > 0f ? m_ShapeStrength[i] / m_ShapeShare[i] : 1f;
+                m_Face.SetShapeImmediate(m_Vowels[i].shape, open * focused * strength);
+            }
         }
 
-        // Loudness of the audio just played, mapped to 0..1 between the quiet and loud levels.
+        // Index of the first Vowels entry that uses the same shape as entry i (i itself if it's the first).
+        int GroupLeader(int i)
+        {
+            for (var j = 0; j < i; j++)
+                if (m_Vowels[j].shape == m_Vowels[i].shape)
+                    return j;
+            return i;
+        }
+
+        // Loudness of the audio just read, mapped to 0..1 between the quiet and loud levels.
         float MouthFromLoudness()
         {
-            m_Voice.GetOutputData(m_Samples, 0); // channel 0 (left, or the only channel for mono voice files)
             var sum = 0f;
-            foreach (var s in m_Samples)
+            foreach (var s in m_Raw)
                 sum += s * s;
-            var rms = Mathf.Sqrt(sum / m_Samples.Length);
+            var rms = Mathf.Sqrt(sum / m_Raw.Length);
             return Mathf.InverseLerp(m_QuietLevel, m_LoudLevel, rms); // clamps to 0..1
         }
 
-        // Measures F1/F2 and sets each vowel's target share from how close it is to them.
+        // Measures F1/F2 from m_Raw and sets each vowel's target share from how close it is to them.
         void DetectVowel()
         {
-            // 1. Spectrum: m_Spectrum[i] = strength of frequencies around i × binHz.
-            //    Bins cover 0 Hz up to half the sample rate (the highest frequency digital audio can hold).
-            m_Voice.GetSpectrumData(m_Spectrum, 0, FFTWindow.BlackmanHarris);
-            var binHz = AudioSettings.outputSampleRate * 0.5f / m_Spectrum.Length;
-
-            // 2. Smooth: each bin becomes the average of its neighbours within ± m_SmoothingHz. Only the bins up to
-            //    the top of the F2 range are needed (about 130 of the 1024 at 48 kHz).
-            var radius = Mathf.Max(1, Mathf.RoundToInt(m_SmoothingHz / binHz));
-            var lastBin = Mathf.Min(m_Spectrum.Length - 1, Mathf.CeilToInt(k_MaxF2 / binHz));
-            for (var i = 0; i <= lastBin; i++)
+            // 1. Reduce to ~11 kHz: each analysis sample is the average of m_Decimation output samples.
+            for (var i = 0; i < k_FrameLength; i++)
             {
-                var from = Mathf.Max(0, i - radius);
-                var to = Mathf.Min(m_Spectrum.Length - 1, i + radius);
                 var sum = 0f;
-                for (var j = from; j <= to; j++)
-                    sum += m_Spectrum[j];
-                m_Smoothed[i] = sum / (to - from + 1);
+                for (var j = 0; j < m_Decimation; j++)
+                    sum += m_Raw[i * m_Decimation + j];
+                m_Frame[i] = sum / m_Decimation;
             }
 
-            // 3. The two hilltops.
-            var f1 = PeakFrequency(k_MinF1, k_MaxF1, binHz, false);
-            // Higher frequencies are naturally much quieter in a voice, so for F2 the search boosts each bin in
-            // proportion to its frequency; otherwise the slope down from F1 would win over the real F2 hill.
-            var f2 = PeakFrequency(Mathf.Max(k_MinF2, f1 + k_MinGap), k_MaxF2, binHz, true);
+            // 2. Pre-emphasis (keep mostly the change from one sample to the next): voices are much quieter at high
+            //    frequencies, and this evens that out so F2 isn't drowned by F1. Then a Hamming window (fade the
+            //    ends to 0) so the cut-off edges of the snippet don't add false frequencies. Done backwards so each
+            //    step still reads the original previous sample.
+            for (var i = k_FrameLength - 1; i > 0; i--)
+                m_Frame[i] -= k_PreEmphasis * m_Frame[i - 1];
+            for (var i = 0; i < k_FrameLength; i++)
+                m_Frame[i] *= 0.54f - 0.46f * Mathf.Cos(2f * Mathf.PI * i / (k_FrameLength - 1));
+
+            // 3. Autocorrelation: r[lag] = how similar the snippet is to itself shifted by 'lag' samples.
+            for (var lag = 0; lag <= k_LpcOrder; lag++)
+            {
+                var sum = 0f;
+                for (var i = lag; i < k_FrameLength; i++)
+                    sum += m_Frame[i] * m_Frame[i - lag];
+                m_Autocorrelation[lag] = sum;
+            }
+            m_Autocorrelation[0] *= 1.0001f; // a tiny bit of extra "noise" keeps the next step numerically stable
+            if (m_Autocorrelation[0] <= 0f)
+                return;
+
+            // 4. LPC filter from the autocorrelation (the Levinson-Durbin method: builds the best 1-number predictor,
+            //    then improves it to 2 numbers, 3, ... up to k_LpcOrder).
+            if (!SolveLpc())
+                return;
+
+            // 5. Walk the filter's frequency curve and take its first two hilltops above k_MinF1.
+            if (!FindFormants(out var f1, out var f2))
+                return;
             m_LiveF1 = f1;
             m_LiveF2 = f2;
 
-            // 4. Closeness to each vowel: distance measured in "tolerances", turned into a score with exp(-d²)
+            // 6. Closeness to each vowel: distance measured in "tolerances", turned into a score with exp(-d²)
             //    (1 = exact match, falling smoothly towards 0), then scaled so the shares add up to 1.
             var total = 0f;
             for (var i = 0; i < m_Vowels.Length; i++)
@@ -288,7 +374,11 @@ namespace FurBrains
                 total += m_VowelTarget[i];
             }
             if (total < 1e-6f)
-                return; // nothing close at all (odd sound): keep the previous targets
+            {
+                // Nothing close at all (an odd sound): put everything back to the previous shares.
+                Array.Copy(m_VowelWeight, m_VowelTarget, m_VowelTarget.Length);
+                return;
+            }
 
             var best = 0;
             for (var i = 0; i < m_Vowels.Length; i++)
@@ -297,26 +387,76 @@ namespace FurBrains
                 if (m_VowelTarget[i] > m_VowelTarget[best])
                     best = i;
             }
-            m_LiveVowel = m_Vowels.Length > 0 ? m_Vowels[best].shape : "";
+            m_LiveVowel = m_Vowels.Length > 0 ? $"{best}: {m_Vowels[best].shape}" : "";
         }
 
-        // Frequency (Hz) of the strongest smoothed bin between fromHz and toHz.
-        float PeakFrequency(float fromHz, float toHz, float binHz, bool boostHighs)
+        // Levinson-Durbin: fills m_Lpc with a[0] = 1, a[1..order] such that each sample ≈ -(a[1]·previous sample +
+        // a[2]·the one before + ...). Returns false if the maths broke down (e.g. pure silence).
+        bool SolveLpc()
         {
-            var first = Mathf.Max(1, Mathf.RoundToInt(fromHz / binHz));
-            var last = Mathf.Min(m_Smoothed.Length - 1, Mathf.RoundToInt(toHz / binHz));
-            var bestBin = first;
-            var bestValue = -1f;
-            for (var i = first; i <= last; i++)
+            var r = m_Autocorrelation;
+            var a = m_Lpc;
+            Array.Clear(a, 0, a.Length);
+            a[0] = 1f;
+            var error = r[0]; // how wrong the current predictor still is
+
+            for (var i = 1; i <= k_LpcOrder; i++)
             {
-                var value = boostHighs ? m_Smoothed[i] * i : m_Smoothed[i];
-                if (value > bestValue)
-                {
-                    bestValue = value;
-                    bestBin = i;
-                }
+                var acc = r[i];
+                for (var j = 1; j < i; j++)
+                    acc += a[j] * r[i - j];
+                var k = -acc / error; // how much the new, i-th number helps
+
+                for (var j = 1; j < i; j++)
+                    m_LpcTemp[j] = a[j] + k * a[i - j];
+                for (var j = 1; j < i; j++)
+                    a[j] = m_LpcTemp[j];
+                a[i] = k;
+
+                error *= 1f - k * k;
+                if (error <= 0f)
+                    return false;
             }
-            return bestBin * binHz;
+            return true;
+        }
+
+        // The filter's strength at frequency w is 1 / |a[0] + a[1]·e^(-iw) + a[2]·e^(-2iw) + ...|²; its local maxima
+        // (hills) are the formants.
+        bool FindFormants(out float f1, out float f2)
+        {
+            f1 = f2 = 0f;
+            float before = 0f, previous = 0f;
+            var count = 0;
+            for (var hz = 150f; hz <= k_MaxHz; hz += k_StepHz, count++)
+            {
+                var w = 2f * Mathf.PI * hz / m_FrameRate;
+                float re = 0f, im = 0f;
+                for (var k = 0; k <= k_LpcOrder; k++)
+                {
+                    re += m_Lpc[k] * Mathf.Cos(w * k);
+                    im += m_Lpc[k] * Mathf.Sin(w * k);
+                }
+                var strength = 1f / (re * re + im * im);
+
+                // The previous point is a hilltop if it's higher than both of its neighbours.
+                if (count >= 2 && previous > before && previous >= strength)
+                {
+                    var peak = hz - k_StepHz;
+                    if (f1 == 0f)
+                    {
+                        if (peak >= k_MinF1)
+                            f1 = peak;
+                    }
+                    else if (peak > f1 + k_MinGap && peak >= k_MinF2)
+                    {
+                        f2 = peak;
+                        return true;
+                    }
+                }
+                before = previous;
+                previous = strength;
+            }
+            return false; // no clear second hill (e.g. a consonant): keep the previous vowel
         }
 
         // The vowel arrays match the Vowels list; (re)made if its length changes, e.g. edited in Play mode.
@@ -327,6 +467,9 @@ namespace FurBrains
                 return;
             m_VowelTarget = new float[m_Vowels.Length];
             m_VowelWeight = new float[m_Vowels.Length];
+            m_ShapeShare = new float[m_Vowels.Length];
+            m_ShapeStrength = new float[m_Vowels.Length];
+            m_ShapeFocused = new float[m_Vowels.Length];
             if (m_Vowels.Length > 0)
                 m_VowelTarget[0] = m_VowelWeight[0] = 1f;
         }

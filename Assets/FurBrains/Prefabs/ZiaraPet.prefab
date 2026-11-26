@@ -5084,6 +5084,7 @@ MonoBehaviour:
   m_PlaySummonAnimation: 1
   m_MaxTapDuration: 0.35
   m_TapCooldown: 0.5
+  m_TapVoiceLine: {fileID: 8300000, guid: 08a27f9bde7897f41a066976c8a5c793, type: 3}
   m_FeedCooldown: 0.5
   m_FacePlayer: 1
   m_TurnSpeed: 45
@@ -5100,7 +5101,7 @@ AudioSource:
   serializedVersion: 4
   OutputAudioMixerGroup: {fileID: 0}
   m_audioClip: {fileID: 0}
-  m_Resource: {fileID: 8300000, guid: 71192dbc34acd924cb718ce98ca199a3, type: 3}
+  m_Resource: {fileID: 0}
   m_PlayOnAwake: 1
   m_Volume: 1
   m_Pitch: 1
@@ -5208,24 +5209,32 @@ MonoBehaviour:
   m_MouthShape: A
   m_Vowels:
   - shape: A
-    f1: 850
-    f2: 1300
+    f1: 910
+    f2: 1400
+    strength: 1
   - shape: I
-    f1: 330
-    f2: 2700
-  - shape: U
-    f1: 380
-    f2: 1000
-  - shape: E
-    f1: 600
-    f2: 2300
+    f1: 390
+    f2: 2900
+    strength: 1
   - shape: O
-    f1: 550
-    f2: 950
-  m_F1Tolerance: 200
-  m_F2Tolerance: 500
+    f1: 390
+    f2: 2000
+    strength: 1.25
+  - shape: E
+    f1: 690
+    f2: 2030
+    strength: 1
+  - shape: O
+    f1: 570
+    f2: 1120
+    strength: 1.25
+  - shape: O
+    f1: 740
+    f2: 1680
+    strength: 1.25
+  m_F1Tolerance: 150
+  m_F2Tolerance: 400
   m_VowelChangeSpeed: 12
-  m_SmoothingHz: 150
   m_SpatialBlend: 0
   m_TestLine: {fileID: 8300000, guid: 35a1e0d635015684789222371d8db0b2, type: 3}
   m_LiveF1: 0

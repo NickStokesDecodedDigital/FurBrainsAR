@@ -129,6 +129,17 @@ namespace FurBrains
                  "tapping doesn't restart the tap animation over and over. 0 = no lockout.")]
         float m_TapCooldown = 1.5f;
 
+        [SerializeField]
+        [Tooltip("Optional voice line (clip or Audio Random Container) the FurBrain says when the player taps her, " +
+                 "through FurBrainSpeech (so her mouth moves). Handy for testing lip sync. Minigames calling " +
+                 "OnTapped() don't trigger it.")]
+        AudioResource m_TapVoiceLine;
+
+        [SerializeField]
+        [Tooltip("Optional voice line (clip or Audio Random Container) the FurBrain says once her summon animation " +
+                 "has finished (straight away if there's no summon animation), through FurBrainSpeech.")]
+        AudioResource m_Hello;
+
         [SerializeField, Min(0f)]
         [Tooltip("After eating, the FurBrain can't be fed again for this many seconds (the food buttons grey out), " +
                  "so the eat animation can finish and coins aren't spent in a rush. 0 = no lockout.")]
@@ -150,12 +161,16 @@ namespace FurBrains
         [Tooltip("Stop turning once facing the player within this many degrees.")]
         float m_StopTurnAngle = 2f;
 
+
+
         XRBaseInteractable m_Interactable;
         FurBrainMood m_Mood;
+        FurBrainSpeech m_Speech;
         MinigameRunner m_Runner;
         Camera m_Camera;
         float m_SelectStartTime;
         float m_ClearFaceTime = -1f;
+        float m_HelloTime = -1f; // when to say the Hello line (Time.time); -1 = not waiting to
         string[] m_FaceShapesToClear;
         bool m_Turning;
         float m_NextTapTime;  // Time.time from which a tap counts again
@@ -209,6 +224,7 @@ namespace FurBrains
             if (m_Face == null)
                 m_Face = GetComponentInChildren<FurBrainFace>();
             m_Mood = GetComponent<FurBrainMood>();
+            m_Speech = GetComponent<FurBrainSpeech>(); // null on an old prefab without it: then taps just don't speak
             // The pet is spawned at runtime, so it can't have a scene reference dragged in; look the runner up instead.
             m_Runner = FindAnyObjectByType<MinigameRunner>();
 
@@ -264,10 +280,25 @@ namespace FurBrains
         {
             if (m_PlaySummonAnimation)
                 PlayAction(SummonTrigger, m_SummonAnimation, m_SummonExpression);
+
+            // Say hello when the summon animation ends: clip.length is its duration in seconds. Update checks the
+            // time each frame (the same timer approach as m_ClearFaceTime), so nothing needs to call us back.
+            if (m_Hello != null)
+            {
+                var animationSeconds = m_PlaySummonAnimation && m_SummonAnimation != null ? m_SummonAnimation.length : 0f;
+                m_HelloTime = Time.time + animationSeconds;
+            }
         }
 
         void Update()
         {
+            if (m_HelloTime >= 0f && Time.time >= m_HelloTime)
+            {
+                m_HelloTime = -1f; // only once
+                if (m_Speech != null)
+                    m_Speech.Say(m_Hello);
+            }
+
             // Without a FurBrainMood we turn the reaction expression off ourselves (with one, the mood does it).
             if (m_ClearFaceTime >= 0f && Time.time >= m_ClearFaceTime)
             {
@@ -422,6 +453,9 @@ namespace FurBrains
 
             m_NextTapTime = Time.time + m_TapCooldown;
             OnTapped();
+            // Here rather than in OnTapped, so only the player's taps make her talk, not a minigame's reaction.
+            if (m_Speech != null && m_TapVoiceLine != null)
+                m_Speech.Say(m_TapVoiceLine);
         }
     }
 }
