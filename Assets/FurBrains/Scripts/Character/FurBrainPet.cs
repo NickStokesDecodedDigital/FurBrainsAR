@@ -135,11 +135,6 @@ namespace FurBrains
                  "OnTapped() don't trigger it.")]
         AudioResource m_TapVoiceLine;
 
-        [SerializeField]
-        [Tooltip("Optional voice line (clip or Audio Random Container) the FurBrain says once her summon animation " +
-                 "has finished (straight away if there's no summon animation), through FurBrainSpeech.")]
-        AudioResource m_Hello;
-
         [SerializeField, Min(0f)]
         [Tooltip("After eating, the FurBrain can't be fed again for this many seconds (the food buttons grey out), " +
                  "so the eat animation can finish and coins aren't spent in a rush. 0 = no lockout.")]
@@ -170,7 +165,6 @@ namespace FurBrains
         Camera m_Camera;
         float m_SelectStartTime;
         float m_ClearFaceTime = -1f;
-        float m_HelloTime = -1f; // when to say the Hello line (Time.time); -1 = not waiting to
         string[] m_FaceShapesToClear;
         bool m_Turning;
         float m_NextTapTime;  // Time.time from which a tap counts again
@@ -200,6 +194,9 @@ namespace FurBrains
 
         /// <summary>False for a short while after eating (Feed Cooldown). FoodMenu checks it before selling food.</summary>
         public bool canEat => Time.time >= m_NextFeedTime;
+
+        /// <summary>Whether the summon animation plays when the FurBrain is placed (FurBrainComment times hello by it).</summary>
+        public bool playSummonAnimation => m_PlaySummonAnimation;
 
         void Awake()
         {
@@ -280,25 +277,11 @@ namespace FurBrains
         {
             if (m_PlaySummonAnimation)
                 PlayAction(SummonTrigger, m_SummonAnimation, m_SummonExpression);
-
-            // Say hello when the summon animation ends: clip.length is its duration in seconds. Update checks the
-            // time each frame (the same timer approach as m_ClearFaceTime), so nothing needs to call us back.
-            if (m_Hello != null)
-            {
-                var animationSeconds = m_PlaySummonAnimation && m_SummonAnimation != null ? m_SummonAnimation.length : 0f;
-                m_HelloTime = Time.time + animationSeconds;
-            }
+            // (FurBrainComment says hello once this animation has finished.)
         }
 
         void Update()
         {
-            if (m_HelloTime >= 0f && Time.time >= m_HelloTime)
-            {
-                m_HelloTime = -1f; // only once
-                if (m_Speech != null)
-                    m_Speech.Say(m_Hello);
-            }
-
             // Without a FurBrainMood we turn the reaction expression off ourselves (with one, the mood does it).
             if (m_ClearFaceTime >= 0f && Time.time >= m_ClearFaceTime)
             {

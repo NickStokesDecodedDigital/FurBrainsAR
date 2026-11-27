@@ -24,7 +24,8 @@ namespace FurBrains.EditorTools
     /// Ziara.prefab is <i>nested</i>, not copied, so rebuilding Ziara with the character builder flows through.
     /// Re-run this tool after changing it; it overwrites the generated assets in place (same GUIDs, so scene
     /// references such as the ObjectSpawner's prefab list stay valid). Inspector choices on the previous prefab's
-    /// FurBrainPet, FurBrainMood, FurBrainLookAt and FurBrainSpeech (animations, expressions, mood bands, tilt, lip sync) are carried over.
+    /// FurBrainPet, FurBrainMood, FurBrainLookAt, FurBrainSpeech and FurBrainComment (animations, expressions, mood bands,
+    /// tilt, lip sync, comment lines) are carried over.
     /// </remarks>
     public static class FurBrainsPetBuilder
     {
@@ -244,6 +245,7 @@ namespace FurBrains.EditorTools
                 var lookAt = root.AddComponent<FurBrainLookAt>(); // neck/head tilt toward the player's height
                 var speech = root.AddComponent<FurBrainSpeech>(); // voice lines + mouth moving with them
                 var pet = root.AddComponent<FurBrainPet>();
+                var comment = root.AddComponent<FurBrainComment>(); // "I'm hungry" / "let's play" when needs are low
                 // Defaults for a first build...
                 pet.idleAnimation = idleClip;
                 pet.summonAnimation = actionClip;
@@ -254,6 +256,7 @@ namespace FurBrains.EditorTools
                 KeepSettings(previous, lookAt);
                 KeepSettings(previous, speech);
                 KeepSettings(previous, pet);
+                KeepSettings(previous, comment);
                 pet.animator = animator; // always this build's Animator, never the old prefab's
                 // The crumbs particle system is a child of the prefab, so a fresh build makes a fresh one.
                 pet.eatBurst = FurBrainsEatEffect.CreateEatBurst(root.transform, FurBrainsEatEffect.LoadOrCreateMaterial());

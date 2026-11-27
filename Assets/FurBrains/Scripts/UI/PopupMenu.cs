@@ -56,6 +56,18 @@ namespace FurBrains
         /// <summary>Whether the menu is open.</summary>
         public bool isOpen => m_Open;
 
+        /// <summary>True while any popup menu (e.g. the minigame menu) is open. FurBrainPet stays quiet meanwhile.</summary>
+        public static bool anyOpen
+        {
+            get
+            {
+                foreach (var popup in s_All)
+                    if (popup.m_Open)
+                        return true;
+                return false;
+            }
+        }
+
         /// <summary>Closes every popup menu (called when the food menu opens).</summary>
         public static void HideAll()
         {
